@@ -1,0 +1,199 @@
+/**
+ * Seeded card pool for local play and demo.
+ *
+ * Titles, artists and stats come from the approved design
+ * (design/AuxWars.dc.html) so the built app matches the mock exactly.
+ *
+ * NOTE: these are DESIGN FIXTURES, not minted production cards. The real pool
+ * comes from `pnpm seed:cards` (docs/DATA_POPULATION.md), which derives stats
+ * from live popularity data. Stats here are hand-set to match the mock.
+ */
+
+import type { SongCard, Rarity } from '@/types/cards';
+import { RARITY } from './rarity';
+import { GENERATED_CARDS } from './generated-cards';
+
+interface SeedRow {
+  title: string;
+  artist: string;
+  hype: number;
+  stamina: number;
+  rarity: Rarity;
+  flavor: string;
+  collabWith?: string;
+}
+
+const SEED_ROWS: SeedRow[] = [
+  { title: 'Neon Teeth',        artist: 'VELVET STATIC', hype: 88, stamina: 79, rarity: 'epic',      flavor: 'Room went feral on the second drop.' },
+  { title: 'Chrome Rodeo',      artist: 'TALL BOY WEST', hype: 67, stamina: 72, rarity: 'rare',      flavor: 'Held the aux for two full reigns.' },
+  { title: 'Sirens at Dawn',    artist: 'KOSMIC HAZE',   hype: 98, stamina: 91, rarity: 'legendary', flavor: 'Nobody challenged. Nobody dared.' },
+  { title: 'Basement Hum',      artist: 'LOW CEILING',   hype: 41, stamina: 58, rarity: 'common',    flavor: "Somebody's cousin queued this." },
+  { title: 'Split the Crown',   artist: 'DUAL WIELD',    hype: 74, stamina: 66, rarity: 'rare',      flavor: 'Two hands on one cable.' },
+  { title: 'Static Bloom',      artist: 'PAPER SIREN',   hype: 55, stamina: 63, rarity: 'common',    flavor: 'Grew on everybody by the chorus.' },
+  { title: 'Gold Tooth Anthem', artist: 'BIG SUNDAY',    hype: 81, stamina: 70, rarity: 'epic',      flavor: 'Every single person knew the words.' },
+  { title: 'Low Orbit',         artist: 'MOTH CLUB',     hype: 62, stamina: 88, rarity: 'rare',      flavor: 'Never peaked. Never dipped either.' },
+  { title: 'Feral Encore',      artist: 'NIGHT MAYOR',   hype: 95, stamina: 52, rarity: 'legendary', flavor: 'Burned the room down in ninety seconds.' },
+  { title: 'Hallway Echo',      artist: 'SIX FLOORS',    hype: 38, stamina: 49, rarity: 'common',    flavor: 'Played it once. Learned a lesson.' },
+  { title: 'Velvet Riot',       artist: 'VELVET STATIC', hype: 77, stamina: 74, rarity: 'epic',      flavor: 'The encore nobody asked for but everyone needed.' },
+  { title: 'Two Kings One Aux', artist: 'VELVET STATIC', hype: 93, stamina: 64, rarity: 'epic',      flavor: 'Split the crown, doubled the noise.', collabWith: 'KOSMIC HAZE' },
+];
+
+const iso = (offsetDays: number) =>
+  new Date(Date.UTC(2026, 7, 31 - offsetDays)).toISOString();
+
+function buildCard(row: SeedRow, i: number): SongCard {
+  const isCollab = Boolean(row.collabWith);
+  const supply = RARITY[row.rarity].baseSupply;
+
+  return {
+    id: `seed-${i.toString().padStart(3, '0')}`,
+    kind: 'song',
+    title: row.title,
+    subtitle: isCollab ? `${row.artist} × ${row.collabWith}` : row.artist,
+    artworkUrl: null, // frame-only placeholder — the design renders "COVER ART"
+    artworkSource: null,
+    rarity: row.rarity,
+    primaryStat: row.hype,
+    secondaryStat: row.stamina,
+    flavorText: row.flavor,
+    createdAt: iso(i),
+
+    mbRecordingId: `seed-mb-${i.toString().padStart(3, '0')}`,
+    mbReleaseGroupId: null,
+    isrc: null,
+
+    spotifyTrackId: null,
+    deezerTrackId: null,
+    youtubeVideoId: null,
+    jamendoTrackId: null,
+
+    artists: [
+      { mbArtistId: `seed-artist-${row.artist}`, name: row.artist, role: 'primary', joinPhrase: isCollab ? ' × ' : null },
+      ...(row.collabWith
+        ? [{ mbArtistId: `seed-artist-${row.collabWith}`, name: row.collabWith, role: 'primary' as const, joinPhrase: null }]
+        : []),
+    ],
+    isCollab,
+
+    hype: row.hype,
+    stamina: row.stamina,
+    popularitySnapshot: {
+      spotifyPopularity: null,
+      spotifyFollowers: null,
+      deezerRank: null,
+      capturedAt: iso(i),
+    },
+
+    serialNumber: i + 1,
+    supplyTotal: supply,
+    supplyRemaining: supply - i * 3,
+
+    // Seed fixtures have no licensed audio source, so nothing is analyzable.
+    // audioAnalyzable must never be true without a Jamendo id + license
+    // (CARD_SCHEMA.md invariant 3).
+    playbackMode: 'youtube_embed',
+    audioAnalyzable: false,
+    licenseVariant: null,
+    attributionText: null,
+    licenseUrl: null,
+  };
+}
+
+/**
+ * Real cards (MusicBrainz identity + Cover Art Archive artwork) come first,
+ * with the hand-authored design fixtures appended so the pool always has
+ * enough breadth to fill a binder even when a seed run under-delivers.
+ *
+ * Re-run `npm run seed:cards` to refresh the generated half.
+ */
+const FIXTURE_CARDS: SongCard[] = SEED_ROWS.map(buildCard);
+
+/**
+ * Real cards only, as long as the seed run produced a usable pool. Fixtures
+ * pad it out if a run under-delivers, so screens never render empty — but
+ * with a healthy pool the app shows real songs and real covers exclusively.
+ */
+export const ALL_CARDS: SongCard[] =
+  GENERATED_CARDS.length >= 8
+    ? GENERATED_CARDS
+    : [...GENERATED_CARDS, ...FIXTURE_CARDS.slice(0, 12 - GENERATED_CARDS.length)];
+
+export const cardById = (id: string): SongCard | undefined =>
+  ALL_CARDS.find((c) => c.id === id);
+
+/** Pick the first card of a tier — keeps screens correct as the pool changes. */
+const firstOf = (rarity: Rarity, skip = 0): SongCard | undefined =>
+  ALL_CARDS.filter((c) => c.rarity === rarity)[skip];
+
+/**
+ * The player's opening hand — screen 02. Selected by rarity rather than index
+ * so a re-seed cannot silently produce a hand of five commons.
+ */
+export const STARTING_HAND: SongCard[] = [
+  firstOf('legendary'),
+  firstOf('epic'),
+  firstOf('rare'),
+  firstOf('epic', 1) ?? firstOf('rare', 1),
+  firstOf('common') ?? firstOf('rare', 2),
+].filter((c): c is SongCard => Boolean(c));
+
+/** The track currently on the throne — screen 01. */
+export const NOW_PLAYING: SongCard = firstOf('epic') ?? ALL_CARDS[0];
+
+/** The guaranteed legendary pull — screen 04's money shot. */
+export const PACK_PULL: SongCard = firstOf('legendary') ?? ALL_CARDS[0];
+
+/** World Chart listings — screen 06. */
+export interface Listing {
+  id: string;
+  card: SongCard;
+  topOffer: string;
+  offerCount: number;
+}
+
+/**
+ * Listings are ordered by top offer, so they must be sorted by rarity —
+ * a common outranking a legendary would read as a bug in the economy.
+ */
+const RARITY_ORDER: Record<Rarity, number> = { legendary: 0, epic: 1, rare: 2, common: 3 };
+const OFFERS = ['4,820', '3,140', '1,760', '1,205', '640', '115'];
+const OFFER_COUNTS = [31, 22, 14, 9, 6, 3];
+
+export const LISTINGS: Listing[] = [...ALL_CARDS]
+  .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity])
+  .slice(0, 6)
+  .map((card, i) => ({
+    id: `l${i}`,
+    card,
+    topOffer: OFFERS[i],
+    offerCount: OFFER_COUNTS[i],
+  }));
+
+export const BIDS = [
+  { rank: 1, name: 'MAYA J.',  amount: '4,820', initials: 'MJ' },
+  { rank: 2, name: 'DOM R.',   amount: '4,410', initials: 'DR' },
+  { rank: 3, name: 'SASHA V.', amount: '3,900', initials: 'SV' },
+  { rank: 4, name: 'ELI T.',   amount: '3,225', initials: 'ET' },
+];
+
+/** Current player — screen 05. */
+export const CURRENT_PLAYER = {
+  id: 'p-rae',
+  displayName: 'Rae K.',
+  initials: 'RK',
+  tier: 'AUX MARSHAL',
+  seasonBadge: 'S3',
+  totalReignsWon: 37,
+  peakVibe: 99,
+  challengerWinRate: 0.61,
+  drops: 1284,
+};
+
+export const CHALLENGER_QUEUE = [
+  { initials: 'DR', position: 1 },
+  { initials: 'SV', position: 2 },
+  { initials: 'ET', position: 3 },
+  { initials: 'JU', position: 4 },
+];
+
+export const NEXT_UP = [{ initials: 'KO' }, { initials: 'BN' }, { initials: 'AZ' }];

@@ -1,0 +1,164 @@
+/**
+ * Design tokens + keyframes — from design/AuxWars.dc.html and
+ * docs/CARD_ART_GENERATION.md §1.
+ *
+ * Two surfaces only (stage black, booth panel) so neon does all the talking.
+ */
+
+:root {
+  --stage-black: #05050a;
+  --booth-panel: #0e0e18;
+
+  --neon-pink: #ff2e88;
+  --neon-cyan: #4ce3ff;
+  --neon-gold: #ffd84d;
+  --neon-violet: #7b2bff;
+  --neon-mint: #7dffc3;
+  --ink: #f4f2ff;
+
+  --ink-60: rgba(244, 242, 255, 0.6);
+  --ink-40: rgba(244, 242, 255, 0.4);
+  --ink-25: rgba(244, 242, 255, 0.25);
+  --hairline: rgba(255, 255, 255, 0.07);
+
+  --font-title: Anton, Impact, sans-serif;
+  --font-stat: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-tele: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: Barlow, system-ui, -apple-system, sans-serif;
+
+  /* Safe areas for the Android notch/gesture bar under Capacitor. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--stage-black);
+  color: var(--ink);
+  font-family: var(--font-body);
+  /* The app is a fixed-viewport game surface, not a scrolling document. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/**
+ * Visible focus for keyboard and Android D-pad. Without this, navigating the
+ * app without a touchscreen is invisible — you cannot tell what is selected.
+ * :focus-visible (not :focus) so a mouse click does not leave a ring behind.
+ */
+:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Skip link — the tab bar is 6 items deep on every screen. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 12px 18px;
+  background: var(--neon-cyan);
+  color: #041016;
+  font: 700 10px/1 var(--font-tele);
+  letter-spacing: 0.16em;
+  border-radius: 0 0 8px 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/* Screen-reader-only: live regions that must not occupy layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Keyframes, verbatim from the design prototype --- */
+
+@keyframes beat {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50%      { transform: scale(1.045); filter: brightness(1.25); }
+}
+
+@keyframes ring {
+  0%   { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+@keyframes holo {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+@keyframes sheen {
+  0%   { transform: translateX(-140%) rotate(12deg); }
+  100% { transform: translateX(240%) rotate(12deg); }
+}
+
+@keyframes shard {
+  0%   { transform: translate(0, 0) scale(0.3); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(1); opacity: 0; }
+}
+
+@keyframes flash {
+  0%   { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+@keyframes queue {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+@keyframes spotgrow {
+  0%   { opacity: 0; transform: scale(0.6); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/**
+ * Motion is enhancement, never the only signal: rarity always carries a text
+ * tag, so removing animation loses nothing semantic
+ * (docs/CARD_ART_GENERATION.md §3).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

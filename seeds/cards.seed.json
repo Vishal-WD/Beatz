@@ -1,0 +1,123 @@
+[
+  {
+    "mbRecordingId": "9ce40394-cfc8-43fe-aa14-a36f61680cd3",
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "releaseGroupId": "78570bea-2a26-467c-a3db-c52723ceb394",
+    "language": "english",
+    "tierHint": "legendary",
+    "flavorText": "The room recognised it in four notes.",
+    "demoCritical": true,
+    "youtubeVideoId": "4NRXx6U8ABQ"
+  },
+  {
+    "mbRecordingId": "54b5809f-dc8f-4534-a81e-58d4122f3b1c",
+    "title": "Arabic Kuthu",
+    "artist": "Anirudh Ravichander",
+    "releaseGroupId": "2c6fafd7-db90-463f-9f87-74cf53eb75f6",
+    "language": "tamil",
+    "tierHint": "legendary",
+    "flavorText": "Nobody stayed sitting. Nobody dared.",
+    "demoCritical": true,
+    "youtubeVideoId": "x-y54I_zMus"
+  },
+  {
+    "mbRecordingId": "758cfc94-e193-46be-86de-c21913463810",
+    "title": "Naatu Naatu",
+    "artist": "Rahul Sipligunj",
+    "releaseGroupId": "825fcadd-fc0d-4821-9c46-2194d9e72847",
+    "language": "hindi",
+    "tierHint": "legendary",
+    "flavorText": "Two minutes in, the whole floor knew the steps.",
+    "demoCritical": true,
+    "youtubeVideoId": "PsRka-zMTqo"
+  },
+  {
+    "mbRecordingId": "73e27b29-376c-4f4e-a3ab-d4090459b12d",
+    "title": "Chaleya",
+    "artist": "Arijit Singh",
+    "releaseGroupId": "d4cb0cac-3540-497d-b996-a2a97ee2f8f6",
+    "language": "hindi",
+    "tierHint": "epic",
+    "flavorText": "Held the aux for two full reigns.",
+    "demoCritical": false,
+    "youtubeVideoId": "VAdGW7QDJiU"
+  },
+  {
+    "mbRecordingId": "5dc3c29f-eba3-438c-b2ae-1f745d8d78b4",
+    "title": "Vaathi Coming",
+    "artist": "Anirudh Ravichander",
+    "releaseGroupId": "0de25d19-e99f-4059-887e-ac3572f2101a",
+    "language": "tamil",
+    "tierHint": "epic",
+    "flavorText": "Room went feral on the second drop.",
+    "demoCritical": false,
+    "youtubeVideoId": "fRD_3vJagxk"
+  },
+  {
+    "mbRecordingId": "5c942492-9757-4817-b8e8-7d41cf19adb6",
+    "title": "As It Was",
+    "artist": "Harry Styles",
+    "releaseGroupId": "d712ba0e-25fa-4c03-aecd-ec0c100deba5",
+    "language": "english",
+    "tierHint": "epic",
+    "flavorText": "Every single person knew the words.",
+    "demoCritical": false,
+    "youtubeVideoId": "H5v3kku4y6Q"
+  },
+  {
+    "mbRecordingId": "59d2f5a0-a3ae-4e72-a2ae-0ee2bd9902c5",
+    "title": "Naa Ready",
+    "artist": "Anirudh Ravichander",
+    "releaseGroupId": "b65a119e-5174-411b-abcf-992eb0e00333",
+    "language": "tamil",
+    "tierHint": "epic",
+    "flavorText": "Split the crown, doubled the noise.",
+    "demoCritical": false,
+    "youtubeVideoId": "3wDiqlTNlfQ"
+  },
+  {
+    "mbRecordingId": "4c567421-9895-4ee0-a442-9c63cab23e07",
+    "title": "Espresso",
+    "artist": "Sabrina Carpenter",
+    "releaseGroupId": "ce6d2894-07aa-41f6-81dc-5bfb9a6b9442",
+    "language": "english",
+    "tierHint": "rare",
+    "flavorText": "Somebody's cousin queued this. It worked.",
+    "demoCritical": false,
+    "youtubeVideoId": "eVli-tstM5E"
+  },
+  {
+    "mbRecordingId": "882ccebb-287f-4f77-8e88-7527eaa862a0",
+    "title": "Malhari",
+    "artist": "Vishal Dadlani",
+    "releaseGroupId": "6fbd4e6e-a2c1-4353-a2af-0fa686faf615",
+    "language": "hindi",
+    "tierHint": "rare",
+    "flavorText": "Never peaked. Never dipped either.",
+    "demoCritical": false,
+    "youtubeVideoId": "l_MyUGq7pgs"
+  },
+  {
+    "mbRecordingId": "3125b48c-3ad6-4918-84bf-442c1047dddc",
+    "title": "Badtameez Dil",
+    "artist": "Benny Dayal",
+    "releaseGroupId": "e7fd502e-85ca-4b14-b250-b2734192db5b",
+    "language": "hindi",
+    "tierHint": "rare",
+    "flavorText": "Cleared half the room. The half that stayed went feral.",
+    "demoCritical": false,
+    "youtubeVideoId": "II2EO3Nw4m0"
+  },
+  {
+    "mbRecordingId": "ac13271e-a210-49a9-8665-762fb52a4740",
+    "title": "Why This Kolaveri Di",
+    "artist": "Anirudh Ravichander",
+    "releaseGroupId": "6aeffa98-ee86-4d69-b481-867df06aed6d",
+    "language": "tamil",
+    "tierHint": "common",
+    "flavorText": "Grew on everybody by the chorus.",
+    "demoCritical": false,
+    "youtubeVideoId": "YR12Z8f1Dh8"
+  }
+]

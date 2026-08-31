@@ -1,0 +1,33 @@
+# Render blueprint — the realtime server (CLAUDE.md §7.1).
+#
+# Vercel hosts the Next.js UI; Render hosts this. The split is not a
+# preference: Vercel's serverless functions cannot hold persistent WebSocket
+# connections, and Socket.io needs a long-running process.
+
+services:
+  - type: web
+    name: beatz-realtime
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run server:start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: PORT
+        # Render injects the real port; the server reads process.env.PORT.
+        value: '3001'
+      - key: ALLOWED_ORIGINS
+        # Comma-separated. Include the Vercel deployment and the Capacitor
+        # origin — the APK's WebView serves from https://localhost.
+        sync: false
+      - key: REDIS_URL
+        # Optional today (state is in-memory). Required before running more
+        # than one instance: room state must be shared, not per-process.
+        sync: false
+
+# NOTE ON THE FREE PLAN: Render spins free instances down after ~15 minutes
+# idle, and a cold start takes 30-60s. For a live demo either upgrade, or
+# hit /health a few minutes beforehand to wake it.
+# See docs/DEMO_FALLBACKS.md (hour-before).
