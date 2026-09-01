@@ -42,3 +42,8 @@ npm-debug.log*
 yarn-error.log*
 .vercel
 *.tsbuildinfo
+
+# Obsidian vault — personal notes, synced from the repo but never committed
+# back into it. Subagents must not write here; the controller syncs at
+# reviewed checkpoints only.
+/Beatz/
