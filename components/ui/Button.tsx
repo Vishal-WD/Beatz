@@ -4,8 +4,9 @@
  * The one button. Replaces eight different padding/radius combinations that
  * had drifted across the screens (measured 2026-08-31).
  *
- * `accent` exists so a rarity-coloured action (a gold Epic pull, a pink
- * Legendary) reuses this component instead of forking a ninth dialect.
+ * `accent` overrides the fill color on `variant="primary"` only — this allows
+ * rarity-coloured actions (e.g., a gold Epic pull, a pink Legendary) to reuse
+ * this component instead of forking a ninth dialect.
  */
 
 import type { ButtonHTMLAttributes } from 'react';
@@ -63,12 +64,14 @@ export function Button({
         padding: PAD[size],
         font: FONT[size],
         letterSpacing: '.16em',
-        borderRadius: 'var(--radius-sm)',
         width: block ? '100%' : undefined,
         cursor: 'pointer',
         transition: 'background .18s ease, border-color .18s ease, opacity .18s ease',
         ...variantStyle,
         ...style,
+        // Square corners are a hard global constraint (spec §7.1). Re-assert
+        // borderRadius last so callers cannot break this invariant.
+        borderRadius: 'var(--radius-sm)',
       }}
       {...rest}
     >

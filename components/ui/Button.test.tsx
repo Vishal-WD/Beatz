@@ -43,4 +43,9 @@ describe('Button', () => {
     render(<Button variant="primary" accent="#ffd84d">Pull</Button>);
     expect(screen.getByRole('button').style.background).toBe('rgb(255, 216, 77)');
   });
+
+  it('guards borderRadius against caller overrides (spec §7.1 constraint)', () => {
+    render(<Button style={{ borderRadius: '999px' }}>Join</Button>);
+    expect(screen.getByRole('button').style.borderRadius).toBe('var(--radius-sm)');
+  });
 });
