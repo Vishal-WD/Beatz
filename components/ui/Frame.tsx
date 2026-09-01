@@ -39,10 +39,12 @@ export function Frame({
       className={className}
       style={{
         position: 'relative',
-        borderRadius: 'var(--radius-none)',
         border: 'var(--border-hair)',
         background: filled ? 'var(--booth-panel)' : 'transparent',
         ...style,
+        // Square corners are a hard global constraint (spec §7.1). Re-assert borderRadius
+        // last so callers cannot break this invariant.
+        borderRadius: 'var(--radius-none)',
       }}
     >
       {children}

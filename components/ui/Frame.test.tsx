@@ -32,4 +32,10 @@ describe('Frame', () => {
     rerender(<Frame filled>x</Frame>);
     expect(el().style.background).not.toBe('transparent');
   });
+
+  it('protects square corners even when caller passes borderRadius', () => {
+    const { container } = render(<Frame style={{ borderRadius: '999px' }}>x</Frame>);
+    const el = container.firstElementChild as HTMLElement;
+    expect(el.style.borderRadius).toBe('var(--radius-none)');
+  });
 });
