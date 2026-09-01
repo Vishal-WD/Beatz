@@ -26,6 +26,35 @@
   --font-tele: 'JetBrains Mono', ui-monospace, monospace;
   --font-body: Barlow, system-ui, -apple-system, sans-serif;
 
+  /* Barlow Condensed becomes the heading face (spec §7.1, Industry grammar).
+     --font-title stays defined below so unmigrated screens keep rendering. */
+  --font-heading: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+
+  /* Spacing scale. 4px base — every padding and gap comes from here, so the
+     eight different button paddings that exist today collapse to one set. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 44px;
+
+  /* Square corners. Industry is a blueprint: objects are drawn, not softened.
+     Nothing in this system may exceed --radius-sm. */
+  --radius-none: 0;
+  --radius-sm: 2px;
+
+  /* Hairline is the primary surface treatment — objects are outlined,
+     not filled. */
+  --border-hair: 1px solid var(--hairline);
+  --border-strong: 1px solid rgba(255, 255, 255, 0.18);
+
+  /* Registration marks: the "+" crosshair at each corner of a framed object.
+     Industry's signature detail. */
+  --mark-size: 7px;
+
   /* Safe areas for the Android notch/gesture bar under Capacitor. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
