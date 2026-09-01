@@ -47,3 +47,6 @@ yarn-error.log*
 # back into it. Subagents must not write here; the controller syncs at
 # reviewed checkpoints only.
 /Beatz/
+
+# SDD scratch — ledger, briefs, reports, review packages
+/.superpowers/
