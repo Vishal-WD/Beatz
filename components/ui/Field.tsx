@@ -47,7 +47,13 @@ export function Field({ label, value, onChange, ...rest }: FieldProps) {
           border: 'var(--border-strong)',
           color: 'var(--ink)',
           font: "400 14px/1 var(--font-body)",
-          // Guard: re-assert borderRadius after spread to prevent caller overrides
+          // {...rest} above spreads before this whole `style` object, so
+          // last-attribute-wins means a caller-supplied `style` prop is
+          // replaced wholesale here, not merged — their padding, background
+          // and width would vanish silently along with borderRadius. That's
+          // deliberate: the field's appearance is closed. This differs from
+          // Button, where caller styles are merged and only borderRadius is
+          // protected.
           borderRadius: 'var(--radius-sm)',
         }}
       />

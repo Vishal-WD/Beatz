@@ -42,8 +42,10 @@ export function Frame({
         border: 'var(--border-hair)',
         background: filled ? 'var(--booth-panel)' : 'transparent',
         ...style,
-        // Square corners are a hard global constraint (spec §7.1). Re-assert borderRadius
-        // last so callers cannot break this invariant.
+        // `border` and `position` above are intentionally caller-overridable
+        // via `...style` — only borderRadius is re-asserted after the spread.
+        // Square corners are a hard global constraint (spec §7.1); re-assert
+        // borderRadius last so callers cannot break this invariant.
         borderRadius: 'var(--radius-none)',
       }}
     >

@@ -40,6 +40,29 @@ describe('Sheet', () => {
     await userEvent.click(screen.getByText('body'));
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('moves focus into the dialog when opened', () => {
+    render(<Sheet open onClose={() => {}} title="Create"><p>body</p></Sheet>);
+    expect(screen.getByRole('dialog', { name: 'Create' })).toHaveFocus();
+  });
+
+  it('restores focus to the previously focused element on close', () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'open sheet';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    expect(trigger).toHaveFocus();
+
+    const { rerender } = render(
+      <Sheet open onClose={() => {}} title="Create"><p>body</p></Sheet>
+    );
+    expect(screen.getByRole('dialog', { name: 'Create' })).toHaveFocus();
+
+    rerender(<Sheet open={false} onClose={() => {}} title="Create"><p>body</p></Sheet>);
+    expect(trigger).toHaveFocus();
+
+    document.body.removeChild(trigger);
+  });
 });
 
 describe('EmptyState', () => {
