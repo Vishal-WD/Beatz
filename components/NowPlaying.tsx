@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import type { SongCard } from '@/types/cards';
 import { usePlayback, fmtTime } from '@/lib/usePlayback';
+import { usePreviewAudio } from '@/lib/usePreviewAudio';
 import { RARITY, vibeColor } from '@/lib/rarity';
 
 interface Props {
@@ -22,17 +23,36 @@ interface Props {
 
 export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const { hostRef, state, ready, error, elapsed, duration, toggle } = usePlayback({
-    videoId: card.youtubeVideoId,
+
+  /**
+   * Two playback paths, and the preview wins when both exist.
+   *
+   * The 30-second preview is ad-free, starts instantly, needs no iframe, and
+   * is CORS-open so Web Audio can analyse it. The YouTube embed gives the full
+   * track but may roll a pre-roll ad and cannot be analysed. Most of the pool
+   * is chart-sourced and has only a preview; the hand-curated cards have only
+   * a video id — so both paths have to stay.
+   */
+  const preview = usePreviewAudio(card.previewUrl ?? null);
+  const usePreview = preview.available;
+
+  const yt = usePlayback({
+    // Do not construct a YouTube player when the preview is handling playback.
+    videoId: usePreview ? null : card.youtubeVideoId,
     autoplay: false,
   });
 
+  const { hostRef, ready, error } = yt;
+  const playing = usePreview ? preview.playing : yt.state === 'playing';
+  const elapsed = usePreview ? preview.elapsed : yt.elapsed;
+  const duration = usePreview ? preview.duration : yt.duration;
+  const toggle = usePreview ? preview.toggle : yt.toggle;
+
   const r = RARITY[card.rarity];
-  const playing = state === 'playing';
   const pct = duration > 0 ? (elapsed / duration) * 100 : 0;
   const color = vibeColor(vibe);
 
-  if (!card.youtubeVideoId) {
+  if (!card.previewUrl && !card.youtubeVideoId) {
     return (
       <div
         style={{
@@ -194,16 +214,29 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
             }}
           >
             <span>{fmtTime(elapsed)}</span>
+            {/* The two paths report readiness differently: the preview has no
+                "ready" gate (an <audio> element is usable immediately), while
+                the YouTube player must construct itself first. */}
             <span>
-              {error
-                ? 'UNAVAILABLE'
-                : !ready
-                  ? 'LOADING…'
-                  : playing
-                    ? 'PLAYING'
-                    : state === 'buffering'
-                      ? 'BUFFERING'
-                      : 'PAUSED'}
+              {usePreview
+                ? preview.state === 'error'
+                  ? 'UNAVAILABLE'
+                  : preview.state === 'loading'
+                    ? 'BUFFERING'
+                    : preview.playing
+                      ? 'PLAYING'
+                      : preview.state === 'ended'
+                        ? 'ENDED'
+                        : 'PREVIEW · 30s'
+                : error
+                  ? 'UNAVAILABLE'
+                  : !ready
+                    ? 'LOADING…'
+                    : playing
+                      ? 'PLAYING'
+                      : yt.state === 'buffering'
+                        ? 'BUFFERING'
+                        : 'PAUSED'}
             </span>
             <span>{fmtTime(duration)}</span>
           </div>

@@ -54,6 +54,19 @@ export interface SongCard extends CardDisplayBase {
   youtubeVideoId: string | null;
   jamendoTrackId: string | null;
 
+  /**
+   * Apple's own 30-second preview stream. CORS-open, so unlike the YouTube
+   * iframe this can be played by an <audio> element AND analysed by Web Audio
+   * — which is what makes the FFT-driven Vibe Bar possible.
+   *
+   * Only the URL is stored; the audio always streams from Apple and is never
+   * downloaded or cached (docs/LICENSING_RIGHTS.md DO NOT #1).
+   *
+   * Optional because the hand-curated seed fixtures predate it and legitimately
+   * have no preview — those cards fall back to the YouTube embed.
+   */
+  previewUrl?: string | null;
+
   artists: CardArtist[];
   isCollab: boolean;
 

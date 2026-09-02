@@ -65,6 +65,8 @@ export interface DbCard {
   supply_total: number;
   supply_remaining: number;
   youtube_video_id: string | null;
+  /** Apple 30s preview. Present on chart-sourced cards; CORS-open. */
+  preview_url: string | null;
   jamendo_track_id: string | null;
   playback_mode: 'youtube_embed' | 'spotify_handoff' | 'jamendo_local';
   audio_analyzable: boolean;
@@ -274,6 +276,7 @@ export function dbCardToSongCard(c: DbCard) {
     spotifyTrackId: null,
     deezerTrackId: null,
     youtubeVideoId: c.youtube_video_id,
+    previewUrl: c.preview_url,
     jamendoTrackId: c.jamendo_track_id,
     artists: [],
     isCollab: false,
