@@ -141,6 +141,47 @@ export async function fetchCards(): Promise<DbCard[] | null> {
   return data as DbCard[];
 }
 
+/**
+ * The cards THIS player owns.
+ *
+ * Distinct from fetchCards(), which returns the whole catalogue. The deck
+ * previously drew a "hand" straight from the catalogue, so every player saw
+ * the same five cards and owned nothing — card_ownership existed in the
+ * schema but nothing read it. Ownership is what makes a collection real, and
+ * what the supply rules in CLAUDE.md §3 are protecting.
+ *
+ * Returns null when signed out, which the caller shows as a guest preview.
+ */
+export async function fetchOwnedCards(): Promise<DbCard[] | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data, error } = await db
+    .from('card_ownership')
+    .select('serial_number, acquired_at, cards(*)')
+    .eq('owner_id', auth.user.id)
+    .order('acquired_at', { ascending: false });
+
+  if (error) {
+    console.warn('[supabase] fetchOwnedCards:', error.message);
+    return null;
+  }
+
+  // The join nests the card; lift it out and keep the owner's own serial,
+  // which is per-copy and not a property of the catalogue row.
+  // postgrest-js types an embedded row as an array; at runtime a to-one
+  // relationship arrives as a single object. Accept either.
+  return (data ?? [])
+    .map((row) => {
+      const r = row as unknown as { serial_number: number; cards: DbCard | DbCard[] | null };
+      const c = Array.isArray(r.cards) ? r.cards[0] : r.cards;
+      return c ? { ...c, supply_total: c.supply_total, __serial: r.serial_number } : null;
+    })
+    .filter(Boolean) as DbCard[];
+}
+
 export async function fetchEvents(): Promise<DbEvent[] | null> {
   const db = supabase();
   if (!db) return null;

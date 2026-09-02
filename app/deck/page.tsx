@@ -17,6 +17,7 @@ import { useHaptics } from '@/lib/useHaptics';
 import { useRoom, MODE_LABEL } from '@/lib/useRoom';
 import { vibeColor, RARITY } from '@/lib/rarity';
 import { useCards, SOURCE_LABEL } from '@/lib/useCards';
+import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
 
 export default function DeckScreen() {
@@ -25,22 +26,47 @@ export default function DeckScreen() {
   const haptic = useHaptics();
   const { cards, source } = useCards();
   const { profile, isSignedIn } = useAuth();
+  const { cards: owned, owned: hasCollection } = useOwnedCards();
 
-  // A hand that spans rarities, so the hype/stamina trade-off is visible.
+  /*
+    The hand comes from the player's OWN collection (21 cards from the
+    starter pack, plus anything pulled since). It used to be assembled from
+    the global catalogue, so every player held an identical hand and owned
+    nothing at all.
+
+    Signed out there is no collection, so we show a catalogue preview and
+    label it as one rather than implying the guest owns these cards.
+  */
+  const pool = hasCollection ? owned : cards;
   const hand5 = useMemo(() => {
-    const byTier = (r: string, n = 0) => cards.filter((c) => c.rarity === r)[n];
-    return [byTier('legendary'), byTier('epic'), byTier('rare'),
-            byTier('epic', 1) ?? byTier('rare', 1), byTier('common') ?? byTier('rare', 2)]
-      .filter(Boolean).slice(0, 5);
-  }, [cards]);
+    // Best of each tier, so the hype/stamina trade-off stays visible.
+    const rank = { legendary: 0, epic: 1, rare: 2, common: 3 } as const;
+    return [...pool]
+      .sort((a, b) => rank[a.rarity] - rank[b.rarity] || b.hype - a.hype)
+      .slice(0, 5);
+  }, [pool]);
 
   // Connects to the hosted server when one is configured; otherwise falls
   // back to local simulation and SAYS so via the badge below.
-  const { mode, setHolding: pushHold } = useRoom({
+  const { mode, room, setHolding: pushHold } = useRoom({
     roomId: 'basement-4am',
     playerId: profile.id,
     displayName: profile.display_name,
   });
+
+  /*
+    Who actually holds the throne. This was the hardcoded string
+    "MAYA J. HOLDS · NEON TEETH", which claimed a live reign by a player who
+    was not in the room — the app asserted multiplayer state that did not
+    exist. Say what is true instead: the real holder when the server reports
+    one, and plain Solo Practice when nobody else is here (CLAUDE.md §6).
+  */
+  const holderLabel = useMemo(() => {
+    const holder = (room as { holder_name?: string | null } | null)?.holder_name;
+    if (holder) return `${holder.toUpperCase()} HOLDS`;
+    if (deckId) return 'YOU HOLD THE THRONE';
+    return 'THRONE OPEN · PLAY A CARD';
+  }, [room, deckId]);
 
   const deckCard = useMemo(() => hand5.find((c) => c.id === deckId) ?? null, [hand5, deckId]);
   const hand = useMemo(() => hand5.filter((c) => c.id !== deckId), [hand5, deckId]);
@@ -84,7 +110,8 @@ export default function DeckScreen() {
               YOU ARE
             </div>
             <div style={{ font: '400 22px/1 var(--font-title)', textTransform: 'uppercase', marginTop: 5 }}>
-              {isSignedIn ? profile.display_name : 'Challenger #2'}
+              {/* "Challenger #2" invented a queue position nobody held. */}
+              {isSignedIn ? profile.display_name : 'Guest'}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -113,7 +140,7 @@ export default function DeckScreen() {
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}
           >
-            MAYA J. HOLDS · NEON TEETH
+            {holderLabel}
           </span>
           <VibeMeter vibe={vibe} onCritical={onCritical} />
         </div>
@@ -129,6 +156,14 @@ export default function DeckScreen() {
           <span style={{ font:'400 7px/1 var(--font-tele)', letterSpacing:'.16em',
                          color: SOURCE_LABEL[source].color }}>
             {SOURCE_LABEL[source].text}
+          </span>
+          {/* Be explicit about whether these cards are actually the
+              player's. A guest is browsing the catalogue, not holding a
+              collection, and the app should not blur that. */}
+          <span style={{ font:'400 7px/1 var(--font-tele)', letterSpacing:'.16em',
+                         color: hasCollection ? 'var(--neon-mint)' : 'var(--ink-25)',
+                         marginLeft: 8 }}>
+            {hasCollection ? `YOUR COLLECTION · ${owned.length}` : 'PREVIEW · SIGN IN TO OWN'}
           </span>
         </div>
 

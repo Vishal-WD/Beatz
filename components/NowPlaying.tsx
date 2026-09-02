@@ -90,16 +90,22 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
         Collapsed state moves it off-screen at full size instead of shrinking
         it to zero — that keeps the required dimensions while hiding it.
       */}
+      {/*
+        On the preview path there is no YouTube player to show, so reserving
+        the 200px stage left a large black void under the card. Only the
+        embed path needs (and by LICENSING_RIGHTS.md §2.7, must have) a
+        visible >=200px player.
+      */}
       <div
         style={
-          expanded
+          expanded && !usePreview
             ? { height: 200, overflow: 'hidden', background: '#000', transition: 'height .3s ease' }
             : { height: 0, overflow: 'hidden', background: '#000' }
         }
       >
         <div
           style={
-            expanded
+            expanded && !usePreview
               ? { width: '100%', height: 200 }
               : // Off-screen, still 320x200: hidden without being unmeasurable.
                 { position: 'fixed', left: -10000, top: 0, width: 320, height: 200, pointerEvents: 'none' }
@@ -262,7 +268,12 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
         )}
 
         {/* Attribution: we display YouTube's player, we don't host audio. */}
-        {expanded && !error && (
+        {/*
+          Attribute whatever actually played. Saying "via YouTube" over an
+          Apple preview stream is simply false, and attribution is the thing
+          keeping this app copyright-clean (LICENSING_RIGHTS.md §2.5, §2.7).
+        */}
+        {(usePreview || expanded) && !error && (
           <div
             style={{
               marginTop: 9,
@@ -271,7 +282,7 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
               color: 'var(--ink-25)',
             }}
           >
-            PLAYED VIA YOUTUBE
+            {usePreview ? 'PREVIEW VIA APPLE MUSIC' : 'PLAYED VIA YOUTUBE'}
           </div>
         )}
       </div>
