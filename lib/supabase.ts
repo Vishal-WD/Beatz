@@ -103,6 +103,10 @@ export interface DbRoom {
   solo_practice: boolean;
   is_open: boolean;
   updated_at: string;
+  /** Which of the six formats this room runs (CLAUDE.md §1.1). */
+  format: 'concert' | 'fest' | 'clubbing' | 'night_party' | 'disco' | 'private_party';
+  /** Who may enter. Independent of `mode`, which is what may be played. */
+  visibility: 'open' | 'guest_list';
 }
 
 export interface DbEvent {
