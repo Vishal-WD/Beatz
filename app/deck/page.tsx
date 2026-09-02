@@ -73,7 +73,8 @@ export default function DeckScreen() {
 
   const { vibe, holding, holdPct, startHold, endHold } = useVibe({
     stamina: deckCard?.stamina ?? 60,
-    initialVibe: 62,
+    hype: deckCard?.hype ?? 62,
+    control: 'contested',
   });
 
   const color = vibeColor(vibe);

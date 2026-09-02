@@ -27,7 +27,7 @@ export default function ThroneRoom() {
   const nowPlaying = cards.find((c) => c.rarity === 'epic') ?? cards[0];
   const [peak, setPeak] = useState(false);
   const [shards, setShards] = useState<Shard[]>([]);
-  const { vibe, firePeak } = useVibe({ stamina: nowPlaying.stamina, initialVibe: 62 });
+  const { vibe, firePeak } = useVibe({ stamina: nowPlaying.stamina, hype: nowPlaying.hype, control: 'contested' });
   const { play } = useSound();
   const peakTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
