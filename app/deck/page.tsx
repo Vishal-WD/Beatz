@@ -6,7 +6,7 @@
  * (CLAUDE.md §1).
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { NowPlaying } from '@/components/NowPlaying';
@@ -19,9 +19,27 @@ import { vibeColor, RARITY } from '@/lib/rarity';
 import { useCards, SOURCE_LABEL } from '@/lib/useCards';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
+import { supabase, subscribeToRoom, type DbRoom } from '@/lib/supabase';
+import { controlModelFor, type FormatId } from '@/lib/domain/formats';
+import { positionOf } from '@/lib/domain/challengers';
+import { canPlayCard, type PlayRefusal } from '@/lib/domain/play-rules';
+
+const ROOM_SLUG = 'basement-4am';
+
+/** Player-facing sentence for each refusal `canPlayCard` can return. */
+const REFUSAL_COPY: Record<PlayRefusal, string> = {
+  not_your_turn: 'Not your turn — wait for the throne to open.',
+  guest_card_in_event_room: 'Event room — owned cards only.',
+  not_owned: "You don't own this card yet.",
+  crowd_cannot_play: 'Only the host can play cards in this room.',
+};
+
+/** Falls back to Disco (open, contested — CLAUDE.md §1.1) when no room row has loaded yet. */
+const DEFAULT_FORMAT: FormatId = 'disco';
 
 export default function DeckScreen() {
   const [deckId, setDeckId] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const { play } = useSound();
   const haptic = useHaptics();
   const { cards, source } = useCards();
@@ -48,11 +66,37 @@ export default function DeckScreen() {
 
   // Connects to the hosted server when one is configured; otherwise falls
   // back to local simulation and SAYS so via the badge below.
-  const { mode, room, setHolding: pushHold } = useRoom({
-    roomId: 'basement-4am',
+  const { mode, room, line, setHolding: pushHold } = useRoom({
+    roomId: ROOM_SLUG,
     playerId: profile.id,
     displayName: profile.display_name,
   });
+
+  /*
+    The room's format/mode/host come from the `rooms` table, not the live
+    Socket.io state (which only carries the in-memory reign/vibe/players).
+    Loaded once and kept current on the same realtime channel other rooms
+    use, so controlModelFor() and canPlayCard() see the real format instead
+    of always assuming a contested Disco.
+  */
+  const [dbRoom, setDbRoom] = useState<DbRoom | null>(null);
+  useEffect(() => {
+    const db = supabase();
+    if (!db) return;
+    let cancelled = false;
+    db.from('rooms').select('*').eq('slug', ROOM_SLUG).single().then(({ data }) => {
+      if (!cancelled && data) setDbRoom(data as DbRoom);
+    });
+    const unsubscribe = subscribeToRoom(ROOM_SLUG, (r) => !cancelled && setDbRoom(r));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const control = controlModelFor(dbRoom?.format ?? DEFAULT_FORMAT);
+  const myPosition = positionOf(line, profile.id);
+  const challengerLabel = myPosition ? `CHALLENGER #${myPosition}` : 'NOT IN LINE';
 
   /*
     Who actually holds the throne. This was the hardcoded string
@@ -74,16 +118,40 @@ export default function DeckScreen() {
   const { vibe, holding, holdPct, startHold, endHold } = useVibe({
     stamina: deckCard?.stamina ?? 60,
     hype: deckCard?.hype ?? 62,
-    control: 'contested',
+    control,
   });
 
   const color = vibeColor(vibe);
 
-  const onPlayCard = useCallback((id: string) => {
-    setDeckId(id);
+  /*
+    Every play used to succeed unconditionally — the deck slot accepted
+    any card tapped, regardless of room rules. Route the attempt through
+    the same canPlayCard() the server enforces, and when it says no,
+    explain why instead of silently doing nothing or pretending it worked.
+  */
+  const onPlayCard = useCallback((card: (typeof hand5)[number]) => {
+    const verdict = canPlayCard({
+      format: dbRoom?.format ?? DEFAULT_FORMAT,
+      cardRule: dbRoom?.mode ?? 'casual',
+      isHost: dbRoom?.host_id === profile.id,
+      isHolder: Boolean(deckId),
+      // The hand here is always SongCard (useCards/useOwnedCards) — no
+      // Guest Card source feeds this screen yet, so this is never true.
+      // Written as a real check, not `false`, so wiring one in later
+      // (CLAUDE.md §2's OS "now playing" sync) doesn't require finding
+      // and flipping a stale literal here.
+      isGuestCard: (card as { kind: string }).kind === 'guest',
+      owned: owned.some((c) => c.id === card.id),
+    });
+    if (!verdict.ok) {
+      setRefusal(REFUSAL_COPY[verdict.reason]);
+      return;
+    }
+    setRefusal(null);
+    setDeckId(card.id);
     play('cardPlay');
     haptic('medium');
-  }, [play, haptic]);
+  }, [dbRoom, profile.id, deckId, owned, play, haptic]);
 
   const onHoldStart = useCallback(() => {
     startHold();
@@ -111,8 +179,15 @@ export default function DeckScreen() {
               YOU ARE
             </div>
             <div style={{ font: '400 22px/1 var(--font-title)', textTransform: 'uppercase', marginTop: 5 }}>
-              {/* "Challenger #2" invented a queue position nobody held. */}
               {isSignedIn ? profile.display_name : 'Guest'}
+            </div>
+            {/*
+              This used to print "Challenger #2" for every visitor — a queue
+              position nobody held. NOT IN LINE is the honest default; a real
+              rank only shows once positionOf() finds this player queued.
+            */}
+            <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)', marginTop: 4 }}>
+              {challengerLabel}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -247,8 +322,16 @@ export default function DeckScreen() {
 
         {/* Hand — fanned, tap to play */}
         <div>
-          <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)', marginBottom: 12 }}>
-            YOUR HAND · {hand.length}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)' }}>
+              YOUR HAND · {hand.length}
+            </div>
+            {/* A refused play is explained, never silently dropped. */}
+            {refusal && (
+              <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.08em', color: 'var(--neon-pink)' }}>
+                {refusal}
+              </div>
+            )}
           </div>
           <div style={{ position: 'relative', height: 'clamp(120px, 18dvh, 150px)', display: 'flex', justifyContent: 'center' }}>
             {hand.map((c, i) => {
@@ -257,7 +340,7 @@ export default function DeckScreen() {
               return (
                 <button
                   key={c.id}
-                  onClick={() => onPlayCard(c.id)}
+                  onClick={() => onPlayCard(c)}
                   style={{
                     position: 'absolute',
                     left: `calc(50% + ${off * 52}px)`,

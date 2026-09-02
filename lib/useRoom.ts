@@ -19,6 +19,8 @@ import type {
   ClientToServerEvents,
 } from '@/types/game';
 import { RECONNECT_GRACE_MS } from '@/types/game';
+import type { Challenger } from '@/lib/domain/challengers';
+import { supabase } from '@/lib/supabase';
 
 export type ConnectionMode = 'connecting' | 'live' | 'solo' | 'reconnecting';
 
@@ -37,7 +39,29 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
   const [mode, setMode] = useState<ConnectionMode>(disabled || !API_URL ? 'solo' : 'connecting');
   const [room, setRoom] = useState<RoomState | null>(null);
   const [serverVibe, setServerVibe] = useState<number | null>(null);
+  const [line, setLine] = useState<Challenger[]>([]);
   const graceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /*
+    The Challenger Line — who is actually queued to take the throne. This
+    used to be entirely absent from useRoom's return, so no screen could
+    ever know a real position and printed a fixed "Challenger #2" for
+    every visitor instead (CLAUDE.md §6 forbids inventing plausible state).
+  */
+  const loadLine = useCallback(async () => {
+    const db = supabase();
+    if (!db || !roomId) return;
+    const { data } = await db
+      .from('challengers')
+      .select('player_id, position')
+      .eq('room_id', roomId)
+      .order('position');
+    setLine((data ?? []).map((r) => ({ playerId: r.player_id, position: r.position })));
+  }, [roomId]);
+
+  useEffect(() => {
+    void loadLine();
+  }, [loadLine]);
 
   useEffect(() => {
     if (disabled || !API_URL) {
@@ -68,8 +92,18 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
           socket.emit('room:join', { roomId, playerId, displayName });
         });
 
-        socket.on('room:state', (s) => !cancelled && setRoom(s));
+        socket.on('room:state', (s) => {
+          if (cancelled) return;
+          setRoom(s);
+          // The room row changed — the challenger line may have too.
+          void loadLine();
+        });
         socket.on('vibe:update', ({ vibe }) => !cancelled && setServerVibe(vibe));
+
+        socket.on('challenger:joined', () => {
+          if (cancelled) return;
+          void loadLine();
+        });
 
         socket.on('disconnect', () => {
           if (cancelled) return;
@@ -97,7 +131,7 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId, playerId, displayName, disabled]);
+  }, [roomId, playerId, displayName, disabled, loadLine]);
 
   const playCard = useCallback(
     (cardId: string) => socketRef.current?.emit('card:play', { roomId, cardId }),
@@ -118,6 +152,7 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
     mode,
     room,
     serverVibe,
+    line,
     isLive: mode === 'live',
     playCard,
     setHolding,
