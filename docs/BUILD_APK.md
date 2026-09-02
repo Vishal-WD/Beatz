@@ -1,9 +1,24 @@
 # Building the AuxWars APK
 
-## Prerequisites
+## Prerequisites — already installed on this machine
 
-- **JDK 17** and the **Android SDK** (easiest via Android Studio).
-  `java -version` must work and `ANDROID_HOME` must point at the SDK.
+| Component | Location | Why this version |
+|---|---|---|
+| JDK 17 (Temurin) | `D:\Android\jdk17` | Gradle 8.2.1 cannot parse JDK 25 class files ("Unsupported class file major version 69"). Android Studio's bundled JBR **is** 25, so it cannot be used for this build. |
+| Android SDK | `D:\Android\Sdk` | platform-tools, platforms;android-34, build-tools;34.0.0 — API 34 is what `variables.gradle` compiles against |
+| Gradle 8.2.1 | wrapper cache | Its own downloader times out after 10s; the distribution was fetched manually into `~/.gradle/wrapper/dists/` |
+
+Android Studio alone is **not** sufficient: it ships no SDK until you download
+one, and its bundled JDK is too new for this Gradle.
+
+Set these for any build shell:
+
+```bat
+set "JAVA_HOME=D:\Android\jdk17"
+set "ANDROID_HOME=D:\Android\Sdk"
+set "PATH=%JAVA_HOME%in;%PATH%"
+```
+
 - Node 20+, `npm install` already run.
 
 ## Build
