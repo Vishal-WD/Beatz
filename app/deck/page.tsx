@@ -64,16 +64,8 @@ export default function DeckScreen() {
       .slice(0, 5);
   }, [pool]);
 
-  // Connects to the hosted server when one is configured; otherwise falls
-  // back to local simulation and SAYS so via the badge below.
-  const { mode, room, line, setHolding: pushHold } = useRoom({
-    roomId: ROOM_SLUG,
-    playerId: profile.id,
-    displayName: profile.display_name,
-  });
-
   /*
-    The room's format/mode/host come from the `rooms` table, not the live
+    The room's format/mode/host/id come from the `rooms` table, not the live
     Socket.io state (which only carries the in-memory reign/vibe/players).
     Loaded once and kept current on the same realtime channel other rooms
     use, so controlModelFor() and canPlayCard() see the real format instead
@@ -93,6 +85,21 @@ export default function DeckScreen() {
       unsubscribe();
     };
   }, []);
+
+  // Connects to the hosted server when one is configured; otherwise falls
+  // back to local simulation and SAYS so via the badge below.
+  //
+  // roomId (the slug) and roomUuid (dbRoom.id) are deliberately two
+  // different values: the Socket.io server keys rooms by slug, but
+  // challengers.room_id is a UUID foreign key into `rooms`. Until dbRoom
+  // has loaded, roomUuid is null and useRoom leaves the challenger line
+  // empty rather than querying with the wrong identifier.
+  const { mode, room, line, setHolding: pushHold } = useRoom({
+    roomId: ROOM_SLUG,
+    roomUuid: dbRoom?.id ?? null,
+    playerId: profile.id,
+    displayName: profile.display_name,
+  });
 
   const control = controlModelFor(dbRoom?.format ?? DEFAULT_FORMAT);
   const myPosition = positionOf(line, profile.id);

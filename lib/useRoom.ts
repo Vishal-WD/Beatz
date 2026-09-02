@@ -27,14 +27,30 @@ export type ConnectionMode = 'connecting' | 'live' | 'solo' | 'reconnecting';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 interface Options {
+  /**
+   * Slug used to key the Socket.io room ('basement-4am'). Never the same
+   * identifier as `roomUuid`: the socket server keys rooms by slug, the
+   * database keys them by UUID primary key. Do not collapse these into one
+   * value — the challenger-line query below depends on getting the UUID,
+   * not the slug, and silently "simplifying" this back to one id is exactly
+   * how the line went permanently empty before.
+   */
   roomId: string;
+  /**
+   * The room's database UUID (`rooms.id`), NOT the slug above. Needed only
+   * for querying `challengers`, whose `room_id` is a UUID foreign key.
+   * Optional and nullable because the caller (e.g. app/deck/page.tsx) may
+   * not have resolved the DbRoom row yet — while it hasn't, we skip the
+   * query rather than guess, so `line` stays an honest `[]`.
+   */
+  roomUuid?: string | null;
   playerId: string;
   displayName: string;
   /** Skip the network entirely — used by screens that only need the sim. */
   disabled?: boolean;
 }
 
-export function useRoom({ roomId, playerId, displayName, disabled = false }: Options) {
+export function useRoom({ roomId, roomUuid = null, playerId, displayName, disabled = false }: Options) {
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [mode, setMode] = useState<ConnectionMode>(disabled || !API_URL ? 'solo' : 'connecting');
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -50,14 +66,20 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
   */
   const loadLine = useCallback(async () => {
     const db = supabase();
-    if (!db || !roomId) return;
+    // roomUuid is the database id, not the socket slug (see Options above).
+    // Until the caller resolves it, leave the line empty instead of
+    // querying with the wrong identifier and silently matching nothing.
+    if (!db || !roomUuid) {
+      setLine([]);
+      return;
+    }
     const { data } = await db
       .from('challengers')
       .select('player_id, position')
-      .eq('room_id', roomId)
+      .eq('room_id', roomUuid)
       .order('position');
     setLine((data ?? []).map((r) => ({ playerId: r.player_id, position: r.position })));
-  }, [roomId]);
+  }, [roomUuid]);
 
   useEffect(() => {
     void loadLine();
