@@ -94,7 +94,7 @@ export function useAuth() {
     const db = supabase();
     if (!db) return { ok: false, message: 'No backend configured.' };
     setError(null);
-    const { error: e } = await db.auth.signUp({
+    const { data, error: e } = await db.auth.signUp({
       email,
       password,
       options: { data: { display_name: displayName } },
@@ -103,6 +103,23 @@ export function useAuth() {
       setError(e.message);
       return { ok: false, message: e.message };
     }
+
+    /*
+      A successful signUp does NOT always mean a signed-in user. When the
+      project has email confirmation enabled, Supabase creates the user but
+      returns a null session, and the account cannot be used until the link
+      is clicked. Reporting ok:true there sent the caller on to /deck as if
+      signed in, while the app was still a guest — no token was ever stored,
+      so a new tab showed GUEST and no sign-out button appeared.
+
+      Report the real outcome instead so the UI can say what happened.
+    */
+    if (!data.session) {
+      const m = 'Check your email to confirm the account, then sign in.';
+      setError(m);
+      return { ok: false, message: m, needsConfirmation: true };
+    }
+
     return { ok: true, message: '' };
   }, []);
 
