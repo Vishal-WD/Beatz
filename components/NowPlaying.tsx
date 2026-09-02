@@ -120,7 +120,14 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
               toggle();
             }}
             aria-label={playing ? `Pause ${card.title}` : `Play ${card.title}`}
-            disabled={!ready && !error}
+            /*
+              Only the YouTube path has a readiness gate. An <audio> element is
+              usable the moment it exists, and on the preview path no YouTube
+              player is ever constructed (videoId is null), so `ready` would
+              stay false forever and disable the button on the majority of the
+              pool — every chart-sourced card.
+            */
+            disabled={usePreview ? false : !ready && !error}
             style={{
               width: 42,
               height: 42,
@@ -132,7 +139,7 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
               border: `1px solid ${playing ? color : 'rgba(255,255,255,.16)'}`,
               color: playing ? '#0a0812' : 'var(--ink)',
               font: '400 15px/1 var(--font-body)',
-              opacity: !ready && !error ? 0.45 : 1,
+              opacity: !usePreview && !ready && !error ? 0.45 : 1,
               transition: 'background .2s ease',
             }}
           >
