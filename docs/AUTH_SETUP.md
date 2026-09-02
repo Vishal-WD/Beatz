@@ -21,7 +21,38 @@ lands in `auth.users` with `email_confirmed_at = null` and a pending
 `auth.sessions` contained exactly one row (2026-08-31) across every signup
 attempt — proof no account created through the UI has ever had a session.
 
-## The fix (do this once, in the dashboard)
+## RESOLVED — fixed in the database, not the dashboard
+
+The dashboard toggle would not persist: `mailer_autoconfirm` stayed `false`
+through several attempts, and `signInWithPassword` kept answering
+"Email not confirmed". Rather than leave auth broken, the fix moved into a
+migration (`auto_confirm_new_users_demo`) where it is version-controlled and
+verifiable.
+
+`public.handle_new_user()` — the existing AFTER INSERT trigger on
+`auth.users` that creates the profile row — now also sets
+`email_confirmed_at` and clears `confirmation_token`. Accounts already
+stranded were confirmed by the same migration.
+
+Verified end to end in a real browser:
+
+```
+1. REGISTER   200 signup session=true  -> token stored, redirect to /deck
+2. NEW TAB    SIGNED IN | TEST PLAYER | @aux_c91331ae7655 · ROOKIE · 500 DROPS
+3. SIGN OUT   token cleared, back to signed-out screen
+```
+
+The 429 "email rate limit exceeded" also disappeared, because no
+confirmation mail is sent any more. That rate limit was a symptom of this
+same setting, not a separate problem.
+
+> **REMOVE BEFORE ANY REAL LAUNCH.** Auto-confirmation means anyone can
+> register with an address they do not own. Drop the `update auth.users`
+> block from `handle_new_user()`, turn "Confirm email" back on, and
+> configure a real SMTP sender. Fine for a hackathon demo; not for
+> production.
+
+## The original dashboard route (did not work here)
 
 Supabase Dashboard → **Authentication → Sign In / Providers → Email** →
 turn **"Confirm email" OFF** → Save.
