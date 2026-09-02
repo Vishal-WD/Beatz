@@ -9,20 +9,39 @@
  */
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { PhoneShell } from '@/components/PhoneChrome';
+import { EmptyState } from '@/components/ui';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
-import { ACTIVITY, timeAgo } from '@/lib/social-data';
+import { timeAgo } from '@/lib/social-data';
 import { useLiveProfiles } from '@/lib/useLiveEvents';
+import { useActivityFeed } from '@/lib/useActivityFeed';
+import { avatarFor } from '@/lib/rarity';
+
+/** "Maya J." -> "MJ" — the feed has no stored initials, only a name. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '??';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 type Tab = 'FEED' | 'PEOPLE';
+
+const KIND_ACCENT: Record<string, string> = {
+  reign_won: '#4ce3ff',
+  peak_moment: '#ffd84d',
+  card_pulled: '#ff8ac4',
+  followed: 'var(--ink-40)',
+  rsvp: '#ff2e88',
+};
 
 export default function SocialScreen() {
   const { play } = useSound();
   const haptic = useHaptics();
   const [tab, setTab] = useState<Tab>('FEED');
   const { profiles, source, toggleFollow } = useLiveProfiles();
+  const { events: activity } = useActivityFeed();
 
   const followingCount = profiles.filter((p) => p.viewerFollows).length;
 
@@ -32,7 +51,7 @@ export default function SocialScreen() {
         <div style={{ marginBottom: 16 }}>
           <div style={{ font: '400 26px/1 var(--font-title)', textTransform: 'uppercase' }}>Around You</div>
           <div style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--neon-cyan)', marginTop: 6 }}>
-            FOLLOWING {followingCount} · {ACTIVITY.length} UPDATES
+            FOLLOWING {followingCount} · {activity.length} UPDATES
             {source === 'live' && <span style={{ color: 'var(--neon-mint)' }}> · LIVE</span>}
           </div>
         </div>
@@ -59,36 +78,42 @@ export default function SocialScreen() {
         </div>
 
         {tab === 'FEED' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {ACTIVITY.map((a, i) => {
-              const body = (
+          activity.length === 0 ? (
+            <EmptyState
+              title="NOTHING YET"
+              hint="Play a card to start the feed."
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {activity.map((a, i) => (
                 <div
+                  key={a.id}
                   style={{
                     display: 'flex', gap: 11, padding: '13px 2px',
-                    borderBottom: i < ACTIVITY.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none',
+                    borderBottom: i < activity.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none',
                     alignItems: 'flex-start',
                   }}
                 >
                   <span
                     style={{
                       width: 34, height: 34, borderRadius: 11, flexShrink: 0,
-                      background: a.actor.avatarGradient,
+                      background: avatarFor(a.actorName),
                       display: 'grid', placeItems: 'center',
                       font: '700 12px/1 var(--font-stat)',
                     }}
                   >
-                    {a.actor.initials}
+                    {initialsOf(a.actorName)}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ font: '400 13px/1.4 var(--font-body)', color: 'var(--ink)' }}>
-                      <b style={{ fontWeight: 600 }}>{a.actor.displayName}</b>{' '}
+                      <b style={{ fontWeight: 600 }}>{a.actorName}</b>{' '}
                       <span style={{ color: 'var(--ink-60)' }}>{a.subject}</span>
                     </div>
                     {a.detail && (
                       <div
                         style={{
                           font: '400 8px/1 var(--font-tele)', letterSpacing: '.12em',
-                          color: a.accent ?? 'var(--ink-40)', marginTop: 6,
+                          color: KIND_ACCENT[a.kind] ?? 'var(--ink-40)', marginTop: 6,
                         }}
                       >
                         {a.detail.toUpperCase()}
@@ -99,17 +124,9 @@ export default function SocialScreen() {
                     {timeAgo(a.createdAt)}
                   </span>
                 </div>
-              );
-
-              return a.href ? (
-                <Link key={a.id} href={a.href} style={{ textDecoration: 'none' }}>
-                  {body}
-                </Link>
-              ) : (
-                <div key={a.id}>{body}</div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {profiles.map((p) => {

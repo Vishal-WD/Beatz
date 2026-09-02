@@ -16,6 +16,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { FeedSources } from './domain/activity';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -209,6 +210,113 @@ export async function fetchEventCounts(): Promise<Map<string, number>> {
   const { data } = await db.from('event_counts').select('*');
   for (const row of data ?? []) counts.set(row.event_id, row.going_count ?? 0);
   return counts;
+}
+
+/**
+ * Raw material for the activity feed (lib/domain/activity.ts).
+ *
+ * Three independent reads, shaped into FeedSources for buildFeed(). Note on
+ * `pulls`: RLS scopes card_ownership SELECT to the caller's own rows
+ * (owner_id = auth.uid()), so this only ever surfaces the signed-in
+ * player's own pulls — that's the security model, not a bug to work around.
+ *
+ * Returns null on error so the caller renders an empty state rather than a
+ * stale fixture.
+ */
+export async function fetchFeedSources(): Promise<FeedSources | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  try {
+    const [{ data: reignRows, error: reignErr }, { data: pullRows, error: pullErr }, { data: followRows, error: followErr }] =
+      await Promise.all([
+        db
+          .from('reigns')
+          .select('id, peak_vibe, ended_at, profiles(display_name), cards(title)')
+          .not('ended_at', 'is', null)
+          .order('ended_at', { ascending: false })
+          .limit(50),
+        db
+          .from('card_ownership')
+          .select('id, acquired_at, acquired_via, cards(title, rarity)')
+          .in('acquired_via', ['pack', 'peak_moment'])
+          .order('acquired_at', { ascending: false })
+          .limit(50),
+        db
+          .from('follows')
+          .select('follower_id, followee_id, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
+
+    if (reignErr || pullErr || followErr) {
+      console.warn(
+        '[supabase] fetchFeedSources:',
+        reignErr?.message ?? pullErr?.message ?? followErr?.message,
+      );
+      return null;
+    }
+
+    // Follower/followee names need a profile lookup the join above can't
+    // reach directly (follows has no FK alias set up for two profile rows).
+    const { data: auth } = await db.auth.getUser();
+    const followIds = new Set<string>();
+    for (const f of followRows ?? []) {
+      followIds.add(f.follower_id);
+      followIds.add(f.followee_id);
+    }
+    const profileRows = followIds.size
+      ? (await db.from('profiles').select('id, display_name').in('id', Array.from(followIds))).data
+      : [];
+    const nameById = new Map<string, string>((profileRows ?? []).map((p) => [p.id, p.display_name]));
+
+    const reigns = (reignRows ?? []).map((r) => {
+      const row = r as unknown as {
+        id: string;
+        peak_vibe: number;
+        ended_at: string;
+        profiles: { display_name: string } | { display_name: string }[] | null;
+        cards: { title: string } | { title: string }[] | null;
+      };
+      const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+      return {
+        id: row.id,
+        playerName: profile?.display_name ?? 'Someone',
+        cardTitle: card?.title ?? 'a card',
+        peakVibe: row.peak_vibe,
+        endedAt: row.ended_at,
+      };
+    });
+
+    const pulls = (pullRows ?? []).map((p) => {
+      const row = p as unknown as {
+        id: string;
+        acquired_at: string;
+        cards: { title: string; rarity: string } | { title: string; rarity: string }[] | null;
+      };
+      const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+      return {
+        id: row.id,
+        playerName: auth.user ? 'You' : 'Someone',
+        cardTitle: card?.title ?? 'a card',
+        rarity: card?.rarity ?? 'common',
+        acquiredAt: row.acquired_at,
+      };
+    });
+
+    const follows = (followRows ?? []).map((f) => ({
+      id: `${f.follower_id}:${f.followee_id}:${f.created_at}`,
+      followerName: nameById.get(f.follower_id) ?? 'Someone',
+      followeeName: nameById.get(f.followee_id) ?? 'someone',
+      createdAt: f.created_at,
+    }));
+
+    return { reigns, pulls, follows };
+  } catch (e) {
+    console.warn('[supabase] fetchFeedSources:', e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 export async function setRsvp(
