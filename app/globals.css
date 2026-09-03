@@ -21,6 +21,11 @@
   --ink-25: rgba(244, 242, 255, 0.25);
   --hairline: rgba(255, 255, 255, 0.07);
 
+  /* Subtle fill for an inset info box (EventDetailView's venueHint), distinct
+     from --hairline's border role -- a fill and a border on the same box
+     must stay two different values, even when they started out close. */
+  --surface-inset: rgba(255, 255, 255, 0.03);
+
   /* Fixed-contrast text for sitting on a neon/bright chip. Neon backgrounds
      do not change between themes, so the text on top of them must not
      either -- this is not "ink", it never inverts. */
@@ -43,12 +48,16 @@
   --neon-rose: #ff8ac4;
 
   /* Gold-tinted info surface (warning boxes, "event room" callouts) --
-     the wash/border pair repeats verbatim across screens. */
+     the wash/border pair repeats verbatim across screens. This is a
+     surface, not a fixed accent: low-alpha gold reads as a warm tint on
+     the dark ground but goes near-invisible on light, so it gets its own
+     light-mode composition below rather than staying identical. */
   --gold-wash: rgba(255, 216, 77, 0.08);
   --gold-wash-border: rgba(255, 216, 77, 0.3);
 
   /* Deck's "Hold to Vibe" active-press background -- a single reusable UI
-     state, not artwork. */
+     state, not artwork. Also a surface: the 30%-alpha pink/cyan glow reads
+     on dark but goes muddy on light, so it gets a light-mode override too. */
   --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.3), rgba(76, 227, 255, 0.3));
 
   /* SongCardView's artwork viewport when a card has no cover art yet --
@@ -126,12 +135,24 @@
   --hairline: rgba(10, 8, 18, 0.12);
   --border-strong: 1px solid rgba(10, 8, 18, 0.24);
 
-  /* --ink-on-neon, --scrim, --ink-fixed, --neon-rose, --gold-wash,
-     --gold-wash-border, --vibe-hold-glow, --art-slot and --video-backdrop
-     are deliberately absent here for the same reason the neon-* accents
-     are: every one of them sits on (or is) a neon/bright/illustrated/fixed
-     surface that does not itself change with theme, so the value must not
-     change either. Same names, same values, both palettes. */
+  /* Same role as dark's --surface-inset -- a faint fill distinct from
+     --hairline's border role -- recomposed as a dark tint on the light
+     ground instead of a white one. */
+  --surface-inset: rgba(10, 8, 18, 0.035);
+
+  /* --gold-wash, --gold-wash-border and --vibe-hold-glow are surfaces, not
+     fixed accents (unlike --neon-gold itself): each is recomposed here so
+     the tint stays visible against the light --stage-black / --booth-panel
+     instead of washing out. Same hue, different alpha/composition. */
+  --gold-wash: rgba(255, 191, 20, 0.16);
+  --gold-wash-border: rgba(196, 138, 0, 0.55);
+  --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.22), rgba(76, 227, 255, 0.22));
+
+  /* --ink-on-neon, --scrim, --ink-fixed, --neon-rose, --art-slot and
+     --video-backdrop are deliberately absent here: every one of them sits
+     on (or is) a neon/bright/illustrated/fixed surface that does not
+     itself change with theme, so the value must not change either. Same
+     names, same values, both palettes. */
 }
 
 * {

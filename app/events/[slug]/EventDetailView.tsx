@@ -100,7 +100,7 @@ export function EventDetailView({ slug }: { slug: string }) {
           {event.venueHint && (
             <div style={{ font: '400 10px/1.6 var(--font-tele)', letterSpacing: '.1em',
                           color: 'var(--ink-40)', padding: '10px 12px', borderRadius: 8,
-                          background: 'var(--hairline)', border: '1px solid var(--hairline)' }}>
+                          background: 'var(--surface-inset)', border: '1px solid var(--hairline)' }}>
               {event.venueHint.toUpperCase()}
             </div>
           )}
