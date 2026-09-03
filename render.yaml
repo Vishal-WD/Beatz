@@ -26,6 +26,18 @@ services:
         # Optional today (state is in-memory). Required before running more
         # than one instance: room state must be shared, not per-process.
         sync: false
+      - key: SUPABASE_URL
+        # Same project URL the client uses. Without this and the key below
+        # the server runs fine but records nothing: it logs "reign
+        # persistence OFF" and the activity feed and profile stats stay
+        # empty however long people play.
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        # Supabase dashboard -> Project Settings -> API -> service_role.
+        # Bypasses RLS, which is why only this trusted server process may
+        # hold it: it writes reigns on behalf of whoever holds the throne.
+        # Never give it a NEXT_PUBLIC_ prefix and never commit it.
+        sync: false
 
 # NOTE ON THE FREE PLAN: Render spins free instances down after ~15 minutes
 # idle, and a cold start takes 30-60s. For a live demo either upgrade, or
