@@ -20,8 +20,15 @@ const KEY = 'auxwars:theme';
  * Next's Viewport API generates statically at build time (app/layout.tsx).
  * Dark-first for the same reason useTheme() below is: no toggle is wired to
  * this yet, and the app's identity is a dark stage.
+ *
+ * Pinned against globals.css by lib/useTheme.tokens.test.ts -- edit
+ * --stage-black there and these constants together, or the status bar tint
+ * silently drifts from the ground colour it's supposed to match.
  */
 export const STAGE_BLACK_META = '#05050a';
+
+/** Mirrors --stage-black's value under :root[data-theme='light']. */
+export const STAGE_BLACK_META_LIGHT = '#f4f4f7';
 
 export function useTheme() {
   // Dark-first: the app's identity is a dark stage, and a light default

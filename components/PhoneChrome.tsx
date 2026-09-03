@@ -75,6 +75,7 @@ export function TabBar() {
           <Link
             key={t.href}
             href={t.href}
+            aria-current={active ? 'page' : undefined}
             style={{
               flex: 1,
               display: 'flex',
