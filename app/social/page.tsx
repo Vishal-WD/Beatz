@@ -41,7 +41,7 @@ export default function SocialScreen() {
   const haptic = useHaptics();
   const [tab, setTab] = useState<Tab>('FEED');
   const { profiles, source, toggleFollow } = useLiveProfiles();
-  const { events: activity } = useActivityFeed();
+  const { events: activity, state: feedState } = useActivityFeed();
 
   const followingCount = profiles.filter((p) => p.viewerFollows).length;
 
@@ -78,7 +78,12 @@ export default function SocialScreen() {
         </div>
 
         {tab === 'FEED' ? (
-          activity.length === 0 ? (
+          feedState === 'loading' ? (
+            <EmptyState
+              title="LOADING…"
+              hint="Pulling the latest activity."
+            />
+          ) : activity.length === 0 ? (
             <EmptyState
               title="NOTHING YET"
               hint="Play a card to start the feed."

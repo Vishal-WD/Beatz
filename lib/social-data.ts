@@ -10,7 +10,7 @@
  * (docs/CARD_ART_GENERATION.md §6).
  */
 
-import type { PartyEvent, SocialProfile, ActivityItem, EventKind } from '@/types/social';
+import type { PartyEvent, SocialProfile, EventKind } from '@/types/social';
 import { avatarFor } from './rarity';
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
@@ -210,61 +210,6 @@ export const SUGGESTED_PROFILES: SocialProfile[] = HOSTS.map((h, i) => ({
   peakVibe: [99, 81, 97, 62][i],
   challengerWinRate: [0.61, 0.44, 0.72, 0.28][i],
 }));
-
-const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
-
-export const ACTIVITY: ActivityItem[] = [
-  {
-    id: 'a0',
-    kind: 'event_live',
-    actor: { userId: 'u-maya', displayName: 'Maya J.', initials: 'MJ', avatarGradient: avatarFor('u-maya') },
-    createdAt: ago(4),
-    subject: 'Basement 4AM is live',
-    detail: '47 going · Event Room',
-    href: '/events/basement-4am',
-    accent: '#ff2e88',
-  },
-  {
-    id: 'a1',
-    kind: 'peak_moment',
-    actor: { userId: 'u-sasha', displayName: 'Sasha V.', initials: 'SV', avatarGradient: avatarFor('u-sasha') },
-    createdAt: ago(22),
-    subject: 'hit a Peak Moment',
-    detail: 'Vibe 99 · minted a Legendary',
-    href: null,
-    accent: '#ffd84d',
-  },
-  {
-    id: 'a2',
-    kind: 'reign_won',
-    actor: { userId: 'u-dom', displayName: 'Dom R.', initials: 'DR', avatarGradient: avatarFor('u-dom') },
-    createdAt: ago(48),
-    subject: 'took the throne',
-    detail: 'Held 4:12 with Teardrop',
-    href: null,
-    accent: '#4ce3ff',
-  },
-  {
-    id: 'a3',
-    kind: 'event_created',
-    actor: { userId: 'u-sasha', displayName: 'Sasha V.', initials: 'SV', avatarGradient: avatarFor('u-sasha') },
-    createdAt: ago(180),
-    subject: 'scheduled Aux Open · Series 01',
-    detail: 'Tournament · 32 slots',
-    href: '/events/aux-open-series-01',
-    accent: '#ffd84d',
-  },
-  {
-    id: 'a4',
-    kind: 'card_pulled',
-    actor: { userId: 'u-eli', displayName: 'Eli T.', initials: 'ET', avatarGradient: avatarFor('u-eli') },
-    createdAt: ago(310),
-    subject: 'pulled Sandstorm',
-    detail: 'Legendary · 1 of 250',
-    href: null,
-    accent: '#ff8ac4',
-  },
-];
 
 /** "in 5h", "in 3d", "live now" — events are read at a glance. */
 export function relativeTime(iso: string): string {

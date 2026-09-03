@@ -42,6 +42,10 @@ export function useVibe({
   const [holding, setHolding] = useState(false);
   const [hold, setHold] = useState(0);
   const holdingRef = useRef(false);
+  // The ref initializer above already seeds the first reign from `hype`.
+  // Skip this effect's first run so mount doesn't call startReign() twice —
+  // a later `hype` change (a new card played) still must re-seed it.
+  const mounted = useRef(false);
 
   useEffect(() => {
     holdingRef.current = holding;
@@ -49,6 +53,10 @@ export function useVibe({
 
   // A new card onto the deck slot starts a fresh reign (CLAUDE.md §1).
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     state.current = startReign(hype, Date.now());
     setVibe(state.current.vibe);
     setEnded(state.current.endedReason);

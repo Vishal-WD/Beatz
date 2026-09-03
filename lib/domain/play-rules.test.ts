@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { canPlayCard, type PlayContext } from './play-rules';
 
 const ctx = (over: Partial<PlayContext> = {}): PlayContext => ({
-  format: 'disco', cardRule: 'casual', isHost: false, isHolder: false,
+  format: 'disco', cardRule: 'casual', isHost: false,
   isGuestCard: false, owned: true, ...over,
 });
 

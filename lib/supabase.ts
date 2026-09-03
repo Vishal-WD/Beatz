@@ -362,22 +362,6 @@ export async function toggleFollow(followeeId: string, follow: boolean): Promise
 }
 
 /**
- * Atomic Challenger Line join (CLAUDE.md §6).
- * Position comes from the database, never from an array push — two players
- * tapping join in the same tick get distinct slots.
- */
-export async function joinChallengerLine(roomId: string): Promise<number | null> {
-  const db = supabase();
-  if (!db) return null;
-  const { data, error } = await db.rpc('join_challenger_line', { p_room_id: roomId });
-  if (error) {
-    console.warn('[supabase] joinChallengerLine:', error.message);
-    return null;
-  }
-  return data as number;
-}
-
-/**
  * Live room subscription. Returns an unsubscribe function.
  *
  * NOTE: `claim_card_supply` is deliberately NOT callable from here. EXECUTE

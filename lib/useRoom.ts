@@ -165,6 +165,11 @@ export function useRoom({ roomId, roomUuid = null, playerId, displayName, disabl
     [roomId],
   );
 
+  // Joining the Challenger Line goes through this socket event only — the
+  // server assigns the atomic position (CLAUDE.md §6). There used to be a
+  // REST-side joinChallengerLine() in lib/supabase.ts too, but it passed the
+  // room slug where the RPC expected a UUID and had zero callers; it was
+  // deleted rather than fixed so nobody picks it up as a second join path.
   const joinLine = useCallback(
     () => socketRef.current?.emit('challenger:join', { roomId }),
     [roomId],

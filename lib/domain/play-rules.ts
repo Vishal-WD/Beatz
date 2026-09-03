@@ -10,7 +10,6 @@ import type { CardRule, FormatId } from './formats';
 import { controlModelFor } from './formats';
 
 export type PlayRefusal =
-  | 'not_your_turn'
   | 'guest_card_in_event_room'
   | 'not_owned'
   | 'crowd_cannot_play';
@@ -19,7 +18,6 @@ export interface PlayContext {
   format: FormatId;
   cardRule: CardRule;
   isHost: boolean;
-  isHolder: boolean;
   isGuestCard: boolean;
   owned: boolean;
 }

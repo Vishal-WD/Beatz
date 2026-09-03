@@ -28,7 +28,6 @@ const ROOM_SLUG = 'basement-4am';
 
 /** Player-facing sentence for each refusal `canPlayCard` can return. */
 const REFUSAL_COPY: Record<PlayRefusal, string> = {
-  not_your_turn: 'Not your turn — wait for the throne to open.',
   guest_card_in_event_room: 'Event room — owned cards only.',
   not_owned: "You don't own this card yet.",
   crowd_cannot_play: 'Only the host can play cards in this room.',
@@ -141,7 +140,6 @@ export default function DeckScreen() {
       format: dbRoom?.format ?? DEFAULT_FORMAT,
       cardRule: dbRoom?.mode ?? 'casual',
       isHost: dbRoom?.host_id === profile.id,
-      isHolder: Boolean(deckId),
       // The hand here is always SongCard (useCards/useOwnedCards) — no
       // Guest Card source feeds this screen yet, so this is never true.
       // Written as a real check, not `false`, so wiring one in later
@@ -322,7 +320,14 @@ export default function DeckScreen() {
               font: '400 8px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)',
             }}
           >
-            <span>CROWD 14 HOLDING</span>
+            {/*
+              There is no crowd-size signal anywhere in the app — nothing
+              counts how many people are "holding". This used to be a
+              literal 14, the same invented-count defect as the old
+              "MAYA J. HOLDS" string. Report what is actually known: the
+              real Challenger Line length, or Solo Practice when it's empty.
+            */}
+            <span>{line.length > 0 ? `${line.length} IN LINE` : 'SOLO PRACTICE'}</span>
             <span>YOUR PULL {holdPct}%</span>
           </div>
         </div>
