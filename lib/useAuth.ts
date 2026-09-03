@@ -40,7 +40,11 @@ export function useAuth() {
   const loadProfile = useCallback(async (userId: string) => {
     const db = supabase();
     if (!db) return;
-    const { data } = await db.from('profiles').select('*').eq('id', userId).single();
+    // my_profile is a security_invoker view scoped to auth.uid(). The
+    // `profiles` table is world-readable so the social layer can show
+    // handles and tiers, which would also have exposed every player's
+    // Drops balance; the private economy column lives behind this view.
+    const { data } = await db.from('my_profile').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data as DbProfile);
       setState('signed-in');

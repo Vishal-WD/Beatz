@@ -4,20 +4,23 @@
  * Screen 04 — Pack Opening.
  * Four-stage tap sequence: sealed → tear → flip → settle.
  *
- * The legendary here comes from the milestone path (CLAUDE.md §3, path 1) —
- * a guaranteed pull, never probability-scaled. That is precisely what makes
- * the demo's key moment triggerable on cue.
+ * The animation used to be all there was: it displayed a legendary picked
+ * out of the global pool, spent nothing, claimed no supply, and added
+ * nothing to anyone's collection. The tear now opens a real pack — Drops
+ * are spent and cards are granted server-side (lib/usePacks.ts).
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { useCards } from '@/lib/useCards';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
+import { usePacks } from '@/lib/usePacks';
 
-const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'LEGENDARY PULL'];
-const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP TO OPEN ANOTHER'];
+const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
+const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP FOR THE NEXT CARD'];
 
 const TORN_CLIP =
   'polygon(0 14%,9% 10%,20% 15%,32% 9%,45% 15%,58% 9%,70% 15%,82% 10%,92% 15%,100% 11%,100% 100%,0 100%)';
@@ -27,18 +30,58 @@ export default function PacksScreen() {
   const { play } = useSound();
   const haptic = useHaptics();
   const { cards } = useCards();
-  // Guaranteed legendary — the milestone path (CLAUDE.md §3), never scaled odds.
-  const pulled = cards.find((c) => c.rarity === 'legendary') ?? cards[0];
+  const pack = usePacks();
+
+  // The server returns card ids; the catalogue supplies the artwork.
+  const pulled = useMemo(() => {
+    if (!pack.pulls?.length) return null;
+    return pack.pulls
+      .map((p) => cards.find((c) => c.id === p.cardId))
+      .filter(Boolean);
+  }, [pack.pulls, cards]);
+
+  // Which pull is on screen. The reveal steps through the five cards
+  // rather than showing a single fixed one.
+  const [revealed, setRevealed] = useState(0);
+  const hero = pulled?.[Math.min(revealed, pulled.length - 1)] ?? null;
+  const heroPull = pack.pulls?.[Math.min(revealed, (pack.pulls?.length ?? 1) - 1)] ?? null;
 
   const advance = useCallback(() => {
+    // Nothing to tear if the player cannot pay for it — say so instead of
+    // playing an animation that grants nothing.
+    if (!pack.affordable && stage === 0) return;
+    if (pack.busy) return;
+
+    // Tearing IS the purchase. Everything after is reveal.
+    if (stage === 0) {
+      play('packTear');
+      haptic('medium');
+      setRevealed(0);
+      void pack.open();
+      setStage(1);
+      return;
+    }
+
     setStage((s) => {
-      const next = s >= 3 ? 0 : s + 1;
-      if (next === 1) { play('packTear'); haptic('medium'); }
-      else if (next === 3) { play('legendary'); haptic('success'); }
-      else if (next !== 0) { play('tap'); haptic('light'); }
+      if (s >= 3) {
+        // Step through the remaining cards before offering another pack.
+        const more = (pulled?.length ?? 0) - 1;
+        if (revealed < more) {
+          setRevealed((r) => r + 1);
+          play('tap');
+          haptic('light');
+          return 3;
+        }
+        pack.reset();
+        setRevealed(0);
+        return 0;
+      }
+      const next = s + 1;
+      if (next === 3) { play('legendary'); haptic('success'); }
+      else { play('tap'); haptic('light'); }
       return next;
     });
-  }, [play, haptic]);
+  }, [play, haptic, pack, stage, pulled, revealed]);
 
   const packVisible = stage < 3;
   const cardOut = stage >= 1;
@@ -142,7 +185,7 @@ export default function PacksScreen() {
                 Pack
               </span>
               <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em', color: 'var(--ink-40)' }}>
-                5 CARDS · SERIES 01
+                {pack.cost} DROPS · 5 CARDS
               </span>
             </div>
           )}
@@ -159,7 +202,21 @@ export default function PacksScreen() {
                 zIndex: 10,
               }}
             >
-              <SongCardView card={pulled} size="lg" showSerial showFlavor={stage >= 3} />
+              {hero ? (
+                <SongCardView card={hero} size="lg" showSerial showFlavor={stage >= 3} />
+              ) : (
+                <div
+                  style={{
+                    width: 176, height: 244, borderRadius: 14,
+                    border: '1px dashed rgba(255,255,255,.14)',
+                    display: 'grid', placeItems: 'center',
+                    font: '400 8px/1 var(--font-tele)', letterSpacing: '.16em',
+                    color: 'var(--ink-25)',
+                  }}
+                >
+                  {pack.busy ? 'OPENING…' : ''}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -171,9 +228,40 @@ export default function PacksScreen() {
             color: 'var(--ink-40)',
             marginTop: 'auto',
             paddingBottom: 24,
+            textAlign: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
           }}
         >
-          {STEP_CTA[stage]}
+          {/*
+            Say what is actually true. A tap that cannot open a pack must
+            explain itself rather than play an animation and grant nothing.
+          */}
+          {!pack.isSignedIn ? (
+            <Link href="/signin" style={{ color: 'var(--neon-cyan)', textDecoration: 'none' }}>
+              SIGN IN TO OPEN PACKS
+            </Link>
+          ) : pack.error ? (
+            <span style={{ color: 'var(--neon-gold)' }}>{pack.error.toUpperCase()}</span>
+          ) : !pack.affordable && stage === 0 ? (
+            <span style={{ color: 'var(--neon-gold)' }}>
+              NOT ENOUGH DROPS · {pack.cost} NEEDED · YOU HAVE {pack.drops}
+            </span>
+          ) : (
+            <span>{STEP_CTA[stage]}</span>
+          )}
+
+          {/* CLAUDE.md §6: a sold-out tier downgrades and refunds. Show it. */}
+          {stage >= 3 && heroPull?.downgraded && (
+            <span style={{ font: '400 8px/1 var(--font-tele)', color: 'var(--neon-gold)' }}>
+              TIER SOLD OUT · DOWNGRADED · DROPS REFUNDED
+            </span>
+          )}
+
+          {stage >= 3 && pulled && (
+            <span style={{ font: '400 8px/1 var(--font-tele)', color: 'var(--ink-25)' }}>
+              CARD {Math.min(revealed + 1, pulled.length)} OF {pulled.length}
+            </span>
+          )}
         </div>
       </div>
     </PhoneShell>
