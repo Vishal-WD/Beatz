@@ -6,31 +6,46 @@
  * template as a Song Card, different data source.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { PROFILE_FRAME, RARITY, avatarFor } from '@/lib/rarity';
-import { useCards } from '@/lib/useCards';
+import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
+import { fetchPinnedCards, dbCardToSongCard } from '@/lib/supabase';
+import type { SongCard } from '@/types/cards';
 import type { Rarity } from '@/types/cards';
 
 const FILTERS: Array<'ALL' | Uppercase<Rarity>> = ['ALL', 'COMMON', 'RARE', 'EPIC', 'LEGENDARY'];
 
 export default function ProfileScreen() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('ALL');
-  const { cards: ALL_CARDS } = useCards();
   const { profile, isSignedIn, signOut } = useAuth();
+  /*
+    The binder is the player's OWN collection. It used to render the whole
+    global catalogue, so every player's binder looked identical and showed
+    cards they had never pulled.
+  */
+  const { cards: owned, owned: hasCollection } = useOwnedCards();
+  const [pinned, setPinned] = useState<SongCard[]>([]);
+
+  useEffect(() => {
+    if (!isSignedIn || !profile.id) { setPinned([]); return; }
+    let cancelled = false;
+    void fetchPinnedCards(profile.id).then((rows) => {
+      if (!cancelled) setPinned(rows.map(dbCardToSongCard) as SongCard[]);
+    });
+    return () => { cancelled = true; };
+  }, [isSignedIn, profile.id]);
 
   const binder = useMemo(
     () =>
       filter === 'ALL'
-        ? ALL_CARDS
-        : ALL_CARDS.filter((c) => c.rarity === filter.toLowerCase()),
-    [filter, ALL_CARDS],
+        ? owned
+        : owned.filter((c) => c.rarity === filter.toLowerCase()),
+    [filter, owned],
   );
-
-  const pinned = ALL_CARDS.slice(0, 4);
 
   return (
     <PhoneShell>
@@ -98,16 +113,27 @@ export default function ProfileScreen() {
               : <Link href="/signin" style={{ color:'var(--neon-cyan)', textDecoration:'none' }}>SIGN IN</Link>}
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
-            {pinned.map((c) => (
-              <SongCardView key={c.id} card={c} size="sm" />
-            ))}
+            {pinned.length === 0 ? (
+              <div
+                style={{
+                  font: '400 10px/1.6 var(--font-tele)', letterSpacing: '.14em',
+                  color: 'var(--ink-25)', padding: '18px 0',
+                }}
+              >
+                {isSignedIn
+                  ? 'NOTHING PINNED YET'
+                  : 'SIGN IN TO BUILD A SHOWCASE'}
+              </div>
+            ) : (
+              pinned.map((c) => <SongCardView key={c.id} card={c} size="sm" />)
+            )}
           </div>
         </div>
 
         {/* Binder */}
         <div>
           <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)', marginBottom: 12 }}>
-            BINDER · {ALL_CARDS.length} CARDS
+            BINDER · {owned.length} CARD{owned.length === 1 ? '' : 'S'}
           </div>
 
           <div style={{ display: 'flex', gap: 7, marginBottom: 14, flexWrap: 'wrap' }}>

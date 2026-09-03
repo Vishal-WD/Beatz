@@ -186,6 +186,65 @@ export async function fetchChartRows(): Promise<ChartRow[] | null> {
   }));
 }
 
+/**
+ * The cards this player has pinned to their showcase.
+ *
+ * The profile screen used to pin `ALL_CARDS.slice(0, 4)` — the first four
+ * cards of the global catalogue, identical for every player and unrelated
+ * to anything they owned. The pinned_cards table has existed all along.
+ *
+ * Reads are public (a showcase is meant to be seen); writes are RLS-scoped
+ * to the owner.
+ */
+export async function fetchPinnedCards(ownerId: string): Promise<DbCard[]> {
+  const db = supabase();
+  if (!db || !ownerId) return [];
+  const { data, error } = await db
+    .from('pinned_cards')
+    .select('position, card_ownership(cards(*))')
+    .eq('owner_id', ownerId)
+    .order('position');
+  if (error) {
+    console.warn('[supabase] fetchPinnedCards:', error.message);
+    return [];
+  }
+  return (data ?? [])
+    .map((row) => {
+      // postgrest types embedded rows as arrays; to-one relations arrive
+      // as single objects at runtime. Accept either, at both levels.
+      const r = row as unknown as {
+        card_ownership: { cards: DbCard | DbCard[] | null } | { cards: DbCard | DbCard[] | null }[] | null;
+      };
+      const own = Array.isArray(r.card_ownership) ? r.card_ownership[0] : r.card_ownership;
+      const card = own && (Array.isArray(own.cards) ? own.cards[0] : own.cards);
+      return card ?? null;
+    })
+    .filter(Boolean) as DbCard[];
+}
+
+/** Pin or unpin one owned copy. Position is its slot in the showcase. */
+export async function setPinned(
+  ownershipId: string,
+  position: number | null,
+): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+
+  if (position === null) {
+    const { error } = await db
+      .from('pinned_cards')
+      .delete()
+      .match({ owner_id: auth.user.id, ownership_id: ownershipId });
+    return !error;
+  }
+  const { error } = await db
+    .from('pinned_cards')
+    .upsert({ owner_id: auth.user.id, ownership_id: ownershipId, position });
+  return !error;
+}
+
 export interface LinePlayer {
   playerId: string;
   position: number;

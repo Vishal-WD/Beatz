@@ -137,30 +137,3 @@ export const STARTING_HAND: SongCard[] = [
   firstOf('common') ?? firstOf('rare', 2),
 ].filter((c): c is SongCard => Boolean(c));
 
-/** The track currently on the throne — screen 01. */
-export const NOW_PLAYING: SongCard = firstOf('epic') ?? ALL_CARDS[0];
-
-/** The guaranteed legendary pull — screen 04's money shot. */
-export const PACK_PULL: SongCard = firstOf('legendary') ?? ALL_CARDS[0];
-
-/** World Chart listings — screen 06. */
-export interface Listing {
-  id: string;
-  card: SongCard;
-  topOffer: string;
-  offerCount: number;
-}
-
-/** Current player — screen 05. */
-export const CURRENT_PLAYER = {
-  id: 'p-rae',
-  displayName: 'Rae K.',
-  initials: 'RK',
-  tier: 'AUX MARSHAL',
-  seasonBadge: 'S3',
-  totalReignsWon: 37,
-  peakVibe: 99,
-  challengerWinRate: 0.61,
-  drops: 1284,
-};
-
