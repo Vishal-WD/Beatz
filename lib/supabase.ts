@@ -177,6 +177,23 @@ export async function markOnboarded(): Promise<boolean> {
 }
 
 /**
+ * The handle is generated at signup and stays read-only — other players may
+ * already know it. display_name is the only identity field a player can
+ * change themselves.
+ */
+export async function updateDisplayName(name: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db
+    .from('profiles')
+    .update({ display_name: name })
+    .eq('id', auth.user.id);
+  return !error;
+}
+
+/**
  * Rows for the world chart. Scarcity is derived in lib/domain/chart.ts —
  * this only fetches what the database already tracks.
  */
