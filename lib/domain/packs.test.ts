@@ -82,6 +82,19 @@ describe('pack tiers', () => {
     expect(applyGuarantee(all, 'night', 0)).toEqual(all);
   });
 
+  // The all-common fixture above cannot tell "lifts the weakest" from
+  // "lifts whichever card is first" -- every card is tied. This one can:
+  // the sole common sits at index 1, so lifting index 0 would leave it
+  // behind and fail.
+  it('lifts the weakest card, not simply the first', () => {
+    const mixed: import('@/types/cards').Rarity[] =
+      ['rare', 'common', 'rare', 'rare', 'rare'];
+    const out = applyGuarantee(mixed, 'headliner', 0);
+    expect(out[1]).toBe('epic');          // the common was the weakest
+    expect(out[0]).toBe('rare');          // the first card is untouched
+    expect(out.filter((r) => r === 'rare')).toHaveLength(4);
+  });
+
   it('affords a tier only with enough Drops for that tier', () => {
     expect(canAfford(150, 'starter')).toBe(true);
     expect(canAfford(149, 'starter')).toBe(false);
