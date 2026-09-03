@@ -14,7 +14,7 @@
 
 import { useCallback, useState } from 'react';
 import { openPack, type PackPull } from './supabase';
-import { canAfford, PACK_COST } from './domain/packs';
+import { canAfford, PACKS } from './domain/packs';
 import { useAuth } from './useAuth';
 
 export type PackState = 'idle' | 'opening' | 'opened' | 'error';
@@ -57,8 +57,8 @@ export function usePacks() {
     busy: state === 'opening',
     /** Drops the player actually holds, so the screen can price the pack. */
     drops: profile.drops ?? 0,
-    cost: PACK_COST,
+    cost: PACKS.night.cost,
     isSignedIn,
-    affordable: isSignedIn && canAfford(profile.drops ?? 0),
+    affordable: isSignedIn && canAfford(profile.drops ?? 0, 'night'),
   };
 }

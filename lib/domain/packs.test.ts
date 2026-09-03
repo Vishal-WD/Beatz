@@ -1,45 +1,92 @@
 import { describe, it, expect } from 'vitest';
-import { PACK_COST, PACK_SIZE, PACK_ODDS, rollRarity, rollPack, canAfford, refundFor } from './packs';
+import {
+  PACKS, rollRarity, rollPack, applyGuarantee, canAfford, refundFor,
+  type PackTier,
+} from './packs';
 
-describe('pack odds', () => {
-  it('costs 250 Drops and yields 5 cards', () => {
-    expect(PACK_COST).toBe(250);
-    expect(PACK_SIZE).toBe(5);
+const TIERS: PackTier[] = ['starter', 'night', 'headliner'];
+
+describe('pack tiers', () => {
+  it('prices the three tiers as the spec sets them', () => {
+    expect(PACKS.starter.cost).toBe(150);
+    expect(PACKS.night.cost).toBe(400);
+    expect(PACKS.headliner.cost).toBe(900);
   });
 
-  it('has odds that sum to exactly 1', () => {
-    const sum = PACK_ODDS.common + PACK_ODDS.rare + PACK_ODDS.epic + PACK_ODDS.legendary;
-    expect(sum).toBeCloseTo(1, 10);
+  it('sizes them 3 / 5 / 5', () => {
+    expect(PACKS.starter.size).toBe(3);
+    expect(PACKS.night.size).toBe(5);
+    expect(PACKS.headliner.size).toBe(5);
   });
 
-  // CLAUDE.md §3: legendary must stay rare and FIXED — never a ramp.
-  it('keeps legendary the rarest slice', () => {
-    expect(PACK_ODDS.legendary).toBeLessThan(PACK_ODDS.epic);
-    expect(PACK_ODDS.epic).toBeLessThan(PACK_ODDS.rare);
-    expect(PACK_ODDS.rare).toBeLessThan(PACK_ODDS.common);
+  it('gives every tier odds that sum to exactly 1', () => {
+    for (const t of TIERS) {
+      const o = PACKS[t].odds;
+      expect(o.common + o.rare + o.epic + o.legendary, t).toBeCloseTo(1, 10);
+    }
   });
 
-  it('maps a roll deterministically onto a tier', () => {
-    expect(rollRarity(0)).toBe('common');
-    expect(rollRarity(0.999999)).toBe('legendary');
+  // CLAUDE.md §3: legendary must stay the rarest slice in EVERY tier — a
+  // better pack shifts the odds, it never inverts the rarity ladder.
+  it('keeps legendary rarest and common commonest in every tier', () => {
+    for (const t of TIERS) {
+      const o = PACKS[t].odds;
+      expect(o.legendary, t).toBeLessThan(o.epic);
+      expect(o.epic, t).toBeLessThan(o.rare);
+      expect(o.rare, t).toBeLessThan(o.common);
+    }
   });
 
-  it('never returns undefined for any roll in [0,1)', () => {
-    for (let i = 0; i < 1000; i++) {
-      const r = rollRarity(i / 1000);
-      expect(['common', 'rare', 'epic', 'legendary']).toContain(r);
+  it('improves the odds as the tier gets more expensive', () => {
+    expect(PACKS.night.odds.legendary).toBeGreaterThan(PACKS.starter.odds.legendary);
+    expect(PACKS.headliner.odds.legendary).toBeGreaterThan(PACKS.night.odds.legendary);
+  });
+
+  it('never returns undefined for any roll in [0,1) in any tier', () => {
+    for (const t of TIERS) {
+      for (let i = 0; i < 500; i++) {
+        expect(['common', 'rare', 'epic', 'legendary'], t).toContain(rollRarity(i / 500, t));
+      }
     }
   });
 
   it('draws one tier per roll', () => {
-    expect(rollPack([0, 0, 0, 0, 0.999999])).toEqual(
-      ['common', 'common', 'common', 'common', 'legendary'],
-    );
+    expect(rollPack([0, 0, 0], 'starter')).toEqual(['common', 'common', 'common']);
   });
 
-  it('affords a pack only with enough Drops', () => {
-    expect(canAfford(250)).toBe(true);
-    expect(canAfford(249)).toBe(false);
+  // Only headliner guarantees anything. §3 allows a discrete floor; it
+  // forbids a curve that improves with how much you have played or spent.
+  it('guarantees an epic or better only in headliner', () => {
+    expect(PACKS.starter.guarantee).toBeNull();
+    expect(PACKS.night.guarantee).toBeNull();
+    expect(PACKS.headliner.guarantee).toBe('epic');
+  });
+
+  it('upgrades one card when a headliner pull has no epic or better', () => {
+    const all: import('@/types/cards').Rarity[] = ['common', 'common', 'common', 'common', 'common'];
+    const out = applyGuarantee(all, 'headliner', 0);
+    expect(out).toHaveLength(5);
+    expect(out.some((r) => r === 'epic' || r === 'legendary')).toBe(true);
+    // Exactly one card is lifted — the guarantee is a floor, not a reroll.
+    expect(out.filter((r) => r === 'common')).toHaveLength(4);
+  });
+
+  it('leaves a headliner pull alone when it already met the floor', () => {
+    const already: import('@/types/cards').Rarity[] = ['common', 'legendary', 'common', 'common', 'common'];
+    expect(applyGuarantee(already, 'headliner', 0)).toEqual(already);
+  });
+
+  it('never applies a guarantee to the untiered packs', () => {
+    const all: import('@/types/cards').Rarity[] = ['common', 'common', 'common'];
+    expect(applyGuarantee(all, 'starter', 0)).toEqual(all);
+    expect(applyGuarantee(all, 'night', 0)).toEqual(all);
+  });
+
+  it('affords a tier only with enough Drops for that tier', () => {
+    expect(canAfford(150, 'starter')).toBe(true);
+    expect(canAfford(149, 'starter')).toBe(false);
+    expect(canAfford(500, 'night')).toBe(true);
+    expect(canAfford(500, 'headliner')).toBe(false);
   });
 
   // §6: an exhausted tier downgrades and refunds, never hard-fails.
