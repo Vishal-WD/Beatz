@@ -60,6 +60,32 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/*
+  Light theme.
+
+  Binds the SAME token names as the dark palette above, so no component
+  ever branches on which theme is active — a screen asks for --ink and gets
+  whatever ink means right now.
+
+  The four rarity accents are deliberately absent: --neon-pink, --neon-cyan,
+  --neon-gold, --neon-violet and --neon-mint keep their dark-theme values in
+  both themes. Rarity is how a card is read at a glance, and a legendary
+  that changes colour with the theme stops being recognisable. Only the
+  ground, the ink on it, and the lines between them invert.
+*/
+:root[data-theme='light'] {
+  --stage-black: #f4f4f7;
+  --booth-panel: #ffffff;
+
+  --ink: #0a0812;
+  --ink-60: rgba(10, 8, 18, 0.62);
+  --ink-40: rgba(10, 8, 18, 0.44);
+  --ink-25: rgba(10, 8, 18, 0.3);
+
+  --hairline: rgba(10, 8, 18, 0.12);
+  --border-strong: rgba(10, 8, 18, 0.24);
+}
+
 * {
   box-sizing: border-box;
   scrollbar-width: none;
