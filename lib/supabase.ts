@@ -135,6 +135,51 @@ export interface DbEvent {
 // white-screening.
 // ---------------------------------------------------------------------------
 
+export interface PackPull {
+  cardId: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  serialNumber: number;
+  downgraded: boolean;
+}
+
+/**
+ * Opens a pack: spends Drops and claims scarce supply.
+ *
+ * Both halves happen inside `open_pack`, in one transaction. A client-side
+ * read-then-write would let two devices oversell the last copy of a card and
+ * spend the same balance twice (CLAUDE.md §3), and a client that died
+ * mid-call could leave Drops debited with no cards granted.
+ *
+ * The RPC's OUT columns are prefixed `out_` because a plain `rarity` collides
+ * with `cards.rarity` inside the function's own pull query.
+ */
+export async function openPack(): Promise<PackPull[] | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'No backend configured.' };
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { error: 'Sign in to open packs.' };
+
+  const { data, error } = await db.rpc('open_pack', { p_user: auth.user.id });
+  if (error) {
+    return {
+      error: error.message.includes('insufficient_drops')
+        ? 'Not enough Drops for a pack.'
+        : 'Could not open the pack. Try again.',
+    };
+  }
+  return (data ?? []).map((r: {
+    out_card_id: string;
+    out_rarity: PackPull['rarity'];
+    out_serial: number;
+    out_downgraded: boolean;
+  }) => ({
+    cardId: r.out_card_id,
+    rarity: r.out_rarity,
+    serialNumber: r.out_serial,
+    downgraded: r.out_downgraded,
+  }));
+}
+
 export async function fetchCards(): Promise<DbCard[] | null> {
   const db = supabase();
   if (!db) return null;
