@@ -160,20 +160,48 @@ One screen, four jobs:
   preview inline**, without leaving the page.
 - **Filters** — by rarity, and by language (Tamil / Hindi / English).
 - **Edit profile** — display name and handle.
-- **Theme toggle** — light / dark.
+- **Theme toggle** — light / dark (the toggle lives here; the token work it
+  depends on is §5.1, and spans the whole app).
 
-### 5.1 Theme
+### 5.1 Theme, and the hardcoding underneath it
 
-The costliest item here. `app/globals.css` defines 33 variables and the
-palette is hardcoded dark; there is no `data-theme` switching anywhere.
+`app/globals.css` defines 33 tokens, but the screens contain **126 inline
+colours** written as raw hex and `rgba()` — so a theme toggle would flip a
+third of the app and leave the rest dark.
 
-The work is: define a full light palette against the same token names, set
-`data-theme` on the root, persist the choice, and **audit every screen for
-colours written inline rather than through a token**. The audit is the real
-cost — a half-themed app looks worse than a dark-only one.
+The fix is not to hunt 126 literals. The `components/ui/` primitives are
+already token-clean (essentially zero inline colours); the 126 all live in
+screens written before the design system existed and never migrated onto it.
+So this is **finishing a migration that was already started**, not a new
+audit.
 
-The four rarity accents (common / rare / epic / legendary) keep their
-identity across both themes; only ground, ink and hairline invert.
+**Approach: dedicated, reusable layers.**
+
+1. **Token layer** (`app/globals.css`) — the single place a colour is
+   defined. Light and dark palettes bind the *same* token names, so no
+   consumer knows which theme is active. Extend the existing groups
+   (`--ink-*`, `--neon-*`, `--stage`, `--border-*`) rather than inventing a
+   parallel set.
+
+2. **Primitive layer** (`components/ui/`) — already correct. Screens compose
+   these instead of styling from scratch. Where a screen needs something the
+   primitives do not cover, the answer is a new primitive, not a local
+   colour.
+
+3. **Screen layer** (`app/*/page.tsx`) — must contain **no raw colour
+   values**. A screen picks a token or a primitive; it never picks a hex.
+
+**Enforcement, so it does not regress:** a test asserts that no file under
+`app/` contains a raw hex or `rgba()` literal. Without it the count climbs
+back — 126 is what accumulates when nothing checks.
+
+Migration order follows the counts, heaviest first: `events` (14),
+`SongCardView` (12), `room` (11), `social` (10), `signin` (8), `packs` (8),
+`deck` (6), `NowPlaying` (6), `page` (5), `profile` (3), `chart` (2).
+
+The four rarity accents keep their identity across both themes; only ground,
+ink and hairline invert. Rarity is how a card is *read* — inverting it would
+make a legendary unrecognisable.
 
 ---
 
