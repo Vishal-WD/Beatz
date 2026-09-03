@@ -101,6 +101,17 @@ export default function DeckScreen() {
   });
 
   const control = controlModelFor(dbRoom?.format ?? DEFAULT_FORMAT);
+  /*
+    Whose collection the card came from. card_ownership is RLS-scoped to the
+    caller's own rows, so a client cannot read who else owns a card — the
+    only owner it can truthfully name is the signed-in player. Crediting
+    other players belongs with multiplayer card-play, which does not exist
+    yet; inventing a name here would be the defect this branch removed.
+  */
+  const cardCredit = isSignedIn && hasCollection
+    ? { ownerHandle: profile.handle, ownerName: profile.display_name }
+    : null;
+
   const myPosition = positionOf(line, profile.id);
   const challengerLabel = myPosition ? `CHALLENGER #${myPosition}` : 'NOT IN LINE';
 
@@ -265,7 +276,13 @@ export default function DeckScreen() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
               <SongCardView card={deckCard} size="md" showSerial />
               <div style={{ width: '100%' }}>
-                <NowPlaying card={deckCard} vibe={vibe} compact />
+                <NowPlaying
+                  card={deckCard}
+                  vibe={vibe}
+                  compact
+                  format={dbRoom?.format ?? DEFAULT_FORMAT}
+                  credit={cardCredit}
+                />
               </div>
               <button
                 onClick={() => { setDeckId(null); play('tap'); }}

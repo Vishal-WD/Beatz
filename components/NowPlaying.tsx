@@ -14,14 +14,25 @@ import type { SongCard } from '@/types/cards';
 import { usePlayback, fmtTime } from '@/lib/usePlayback';
 import { usePreviewAudio } from '@/lib/usePreviewAudio';
 import { RARITY, vibeColor } from '@/lib/rarity';
+import { creditFor, type CardCredit } from '@/lib/domain/shoutouts';
+import type { FormatId } from '@/lib/domain/formats';
 
 interface Props {
   card: SongCard;
   vibe?: number;
   compact?: boolean;
+  /** Room format — decides whether a shoutout is shown at all (spec §4). */
+  format?: FormatId;
+  /** Whose collection this card came from. Null when unknown. */
+  credit?: CardCredit | null;
 }
 
-export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
+export function NowPlaying({
+  card, vibe = 62, compact = false, format, credit = null,
+}: Props) {
+  // Null unless the format allows shoutouts AND an owner is known —
+  // display only, never a reward (CLAUDE.md §1.2).
+  const shoutout = format ? creditFor(format, credit) : null;
   const [expanded, setExpanded] = useState(false);
 
   /**
@@ -177,6 +188,21 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
             >
               {card.subtitle}
             </div>
+            {shoutout && (
+              <div
+                style={{
+                  font: '400 7px/1 var(--font-tele)',
+                  letterSpacing: '.12em',
+                  color: 'var(--neon-cyan)',
+                  marginTop: 5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {shoutout.toUpperCase()}
+              </div>
+            )}
           </div>
 
           {!compact && (
