@@ -3,18 +3,14 @@
 /**
  * Pack opening.
  *
- * The screen had a four-stage tear animation but nothing behind it: it
- * picked a legendary out of the global pool to display, spent no Drops,
- * claimed no supply, and added nothing to anyone's collection. Tapping it a
- * hundred times changed nothing.
- *
- * The spend and the pull both happen server-side in `open_pack` — see
- * `openPack` in lib/supabase.ts for why that cannot be done from here.
+ * The screen had a tear animation and nothing behind it: no spend, no
+ * pull, no card added to a collection. Tearing is now the purchase, and
+ * which tier was torn decides what it costs and what it contains.
  */
 
 import { useCallback, useState } from 'react';
 import { openPack, type PackPull } from './supabase';
-import { canAfford, PACKS } from './domain/packs';
+import { canAfford, PACKS, type PackTier } from './domain/packs';
 import { useAuth } from './useAuth';
 
 export type PackState = 'idle' | 'opening' | 'opened' | 'error';
@@ -22,17 +18,19 @@ export type PackState = 'idle' | 'opening' | 'opened' | 'error';
 export function usePacks() {
   const { profile, isSignedIn } = useAuth();
   const [pulls, setPulls] = useState<PackPull[] | null>(null);
+  const [openedTier, setOpenedTier] = useState<PackTier | null>(null);
   const [state, setState] = useState<PackState>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const open = useCallback(async () => {
-    // Guard re-entry: the screen is one big tap target, and a double tap
+  const open = useCallback(async (tier: PackTier) => {
+    // Guard re-entry: the pack is one big tap target and a double tap
     // must not bill two packs.
     if (state === 'opening') return;
     setState('opening');
     setError(null);
+    setOpenedTier(tier);
 
-    const res = await openPack('night');
+    const res = await openPack(tier);
     if ('error' in res) {
       setError(res.error);
       setState('error');
@@ -44,21 +42,23 @@ export function usePacks() {
 
   const reset = useCallback(() => {
     setPulls(null);
+    setOpenedTier(null);
     setError(null);
     setState('idle');
   }, []);
+
+  const drops = profile.drops ?? 0;
 
   return {
     open,
     reset,
     pulls,
+    openedTier,
     state,
     error,
     busy: state === 'opening',
-    /** Drops the player actually holds, so the screen can price the pack. */
-    drops: profile.drops ?? 0,
-    cost: PACKS.night.cost,
+    drops,
     isSignedIn,
-    affordable: isSignedIn && canAfford(profile.drops ?? 0, 'night'),
+    affordable: (tier: PackTier) => isSignedIn && canAfford(drops, tier),
   };
 }

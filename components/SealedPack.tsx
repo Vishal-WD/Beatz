@@ -22,9 +22,11 @@ interface Props {
   /** Tearing-open clip path, applied once the tap sequence advances past stage 0. */
   torn: boolean;
   cost: number;
+  /** Cards the chosen tier contains — the shop now sells three different sizes. */
+  size: number;
 }
 
-export function SealedPack({ spotlight, visible, torn, cost }: Props) {
+export function SealedPack({ spotlight, visible, torn, cost, size }: Props) {
   return (
     <>
       {spotlight && (
@@ -81,7 +83,7 @@ export function SealedPack({ spotlight, visible, torn, cost }: Props) {
             Pack
           </span>
           <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em', color: 'var(--ink-40)' }}>
-            {cost} DROPS · 5 CARDS
+            {cost} DROPS · {size} CARDS
           </span>
         </div>
       )}
