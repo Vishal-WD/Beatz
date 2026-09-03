@@ -12,7 +12,7 @@ import { useSound } from '@/lib/useSound';
 import { VibeMeter } from '@/components/VibeMeter';
 import { NowPlaying } from '@/components/NowPlaying';
 import { vibeColor, avatarFor } from '@/lib/rarity';
-import { CHALLENGER_QUEUE, NEXT_UP } from '@/lib/seed-data';
+import { fetchChallengerLine, subscribeToRoom, type LinePlayer, type DbRoom } from '@/lib/supabase';
 import { useCards } from '@/lib/useCards';
 
 const RING_CIRCUMFERENCE = 1131; // 2πr, r=180
@@ -22,8 +22,32 @@ interface Shard {
   style: React.CSSProperties;
 }
 
+/** The room this shared display is showing. */
+const ROOM_SLUG = 'basement-4am';
+
 export default function ThroneRoom() {
   const { cards } = useCards();
+  const [dbRoom, setDbRoom] = useState<DbRoom | null>(null);
+  const [line, setLine] = useState<LinePlayer[]>([]);
+
+  /*
+    The queue used to be a fixture of invented initials rendered as though
+    those players were in the room. This is the 1280x720 display an audience
+    watches, so a fabricated line is the worst place in the app to have one.
+    An empty line now reads as empty rather than as four waiting strangers.
+  */
+  useEffect(() => {
+    let cancelled = false;
+    const unsubscribe = subscribeToRoom(ROOM_SLUG, (r) => !cancelled && setDbRoom(r));
+    return () => { cancelled = true; unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (!dbRoom?.id) return;
+    let cancelled = false;
+    void fetchChallengerLine(dbRoom.id).then((l) => !cancelled && setLine(l));
+    return () => { cancelled = true; };
+  }, [dbRoom?.id]);
   const nowPlaying = cards.find((c) => c.rarity === 'epic') ?? cards[0];
   const [peak, setPeak] = useState(false);
   const [shards, setShards] = useState<Shard[]>([]);
@@ -141,8 +165,13 @@ export default function ThroneRoom() {
         <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)' }}>
           CHALLENGER LINE
         </div>
-        {CHALLENGER_QUEUE.map((c) => (
-          <div key={c.initials} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {line.length === 0 && (
+          <div style={{ font: '400 10px/1.6 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-25)' }}>
+            NO CHALLENGERS · THRONE UNCONTESTED
+          </div>
+        )}
+        {line.map((c) => (
+          <div key={c.playerId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
                 width: 42, height: 42, borderRadius: 12,
@@ -207,9 +236,15 @@ export default function ThroneRoom() {
             NEXT UP
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {NEXT_UP.map((c) => (
+            {line.length === 0 && (
+              <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-25)' }}>
+                NOBODY WAITING
+              </span>
+            )}
+            {/* Same line, front three — not a second source that can disagree. */}
+            {line.slice(0, 3).map((c) => (
               <div
-                key={c.initials}
+                key={c.playerId}
                 style={{
                   width: 36, height: 36, borderRadius: 10,
                   background: avatarFor(c.initials),

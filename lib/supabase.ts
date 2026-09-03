@@ -186,6 +186,55 @@ export async function fetchChartRows(): Promise<ChartRow[] | null> {
   }));
 }
 
+export interface LinePlayer {
+  playerId: string;
+  position: number;
+  initials: string;
+  displayName: string;
+}
+
+/**
+ * The challenger line for a room, resolved to displayable players.
+ *
+ * The Throne Room screen rendered a fixture of invented initials (DR, SV,
+ * ET, JU) as though those people were queued. That screen is the 1280x720
+ * shared display an audience watches, so fabricated players are worse there
+ * than anywhere else in the app.
+ *
+ * Takes the room's UUID, not its slug: the socket keys rooms by slug while
+ * the database keys them by id, and passing the wrong one silently matches
+ * no rows.
+ */
+export async function fetchChallengerLine(roomUuid: string): Promise<LinePlayer[]> {
+  const db = supabase();
+  if (!db || !roomUuid) return [];
+  const { data, error } = await db
+    .from('challengers')
+    .select('player_id, position, profiles(initials, display_name)')
+    .eq('room_id', roomUuid)
+    .order('position');
+  if (error) {
+    console.warn('[supabase] fetchChallengerLine:', error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => {
+    const row = r as unknown as {
+      player_id: string;
+      position: number;
+      profiles: { initials: string; display_name: string } | { initials: string; display_name: string }[] | null;
+    };
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const prof = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return {
+      playerId: row.player_id,
+      position: row.position,
+      initials: prof?.initials ?? '??',
+      displayName: prof?.display_name ?? 'Challenger',
+    };
+  });
+}
+
 export interface PackPull {
   cardId: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';

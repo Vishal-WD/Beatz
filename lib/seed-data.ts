@@ -164,11 +164,3 @@ export const CURRENT_PLAYER = {
   drops: 1284,
 };
 
-export const CHALLENGER_QUEUE = [
-  { initials: 'DR', position: 1 },
-  { initials: 'SV', position: 2 },
-  { initials: 'ET', position: 3 },
-  { initials: 'JU', position: 4 },
-];
-
-export const NEXT_UP = [{ initials: 'KO' }, { initials: 'BN' }, { initials: 'AZ' }];
