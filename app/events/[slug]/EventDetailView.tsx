@@ -6,16 +6,37 @@
  * context for that one button.
  */
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { PhoneShell } from '@/components/PhoneChrome';
-import { eventBySlug, relativeTime } from '@/lib/social-data';
+import { relativeTime } from '@/lib/social-data';
+import { useEventBySlug, useLiveEvents } from '@/lib/useLiveEvents';
 import { EVENT_KIND_LABEL } from '@/types/social';
 import type { RsvpState } from '@/types/social';
 
 export function EventDetailView({ slug }: { slug: string }) {
-  const event = eventBySlug(slug);
-  const [rsvp, setRsvp] = useState<RsvpState | null>(event?.viewerRsvp ?? null);
+  // Reads the same live source as the events list. It used to call
+  // eventBySlug() — a fixture — so tapping an event showed different data
+  // from the card that led to it.
+  const { event, state } = useEventBySlug(slug);
+  const { setRsvp: persistRsvp } = useLiveEvents();
+  const rsvp: RsvpState | null = event?.viewerRsvp ?? null;
+  const setRsvp = (next: RsvpState | null) => {
+    if (event) void persistRsvp(event.id, next);
+  };
+
+  // "Not fetched yet" is not "no such event" — saying so would flash
+  // EVENT NOT FOUND on every open.
+  if (state === 'loading') {
+    return (
+      <PhoneShell>
+        <div style={{ padding: 40, textAlign: 'center',
+                      font: '400 9px/1 var(--font-tele)', letterSpacing: '.16em',
+                      color: 'var(--ink-25)' }}>
+          LOADING…
+        </div>
+      </PhoneShell>
+    );
+  }
 
   if (!event) {
     return (

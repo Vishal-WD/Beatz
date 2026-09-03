@@ -157,6 +157,24 @@ export function useLiveEvents() {
   return { events, source, setRsvp, reload: load };
 }
 
+/**
+ * One event, by slug, from the same live source as the list.
+ *
+ * The detail screen used to call eventBySlug() — a fixture lookup — while
+ * the list beside it read Supabase. Tapping an event therefore showed
+ * different data from the card that led to it.
+ *
+ * 'loading' is distinct from 'missing' on purpose: treating "not fetched
+ * yet" as "no such event" would flash EVENT NOT FOUND on every open.
+ */
+export function useEventBySlug(slug: string) {
+  const { events, source } = useLiveEvents();
+  const event = events.find((e) => e.slug === slug) ?? null;
+  const state: 'loading' | 'found' | 'missing' =
+    source === 'loading' ? 'loading' : event ? 'found' : 'missing';
+  return { event, state };
+}
+
 export function useLiveProfiles() {
   const [profiles, setProfiles] = useState<SocialProfile[]>(SEEDED_PROFILES);
   const [source, setSource] = useState<LiveSource>(

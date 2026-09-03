@@ -186,9 +186,6 @@ export const EVENTS: PartyEvent[] = EVENT_SEEDS.map((e, i) => ({
   createdAt: hoursFromNow(-72),
 }));
 
-export const eventBySlug = (slug: string): PartyEvent | undefined =>
-  EVENTS.find((e) => e.slug === slug);
-
 export const SUGGESTED_PROFILES: SocialProfile[] = HOSTS.map((h, i) => ({
   userId: h.id,
   displayName: h.name,
