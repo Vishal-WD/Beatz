@@ -285,7 +285,7 @@ export default function DeckScreen() {
         <div
           style={{
             minHeight: 'clamp(180px, 28dvh, 240px)', borderRadius: 16,
-            border: deckCard ? '1px solid rgba(255,255,255,.12)' : '2px dashed rgba(255,255,255,.14)',
+            border: deckCard ? '1px solid var(--hairline)' : '2px dashed var(--hairline)',
             background: deckCard ? 'var(--booth-panel)' : 'transparent',
             display: 'grid', placeItems: 'center', padding: 16,
           }}
@@ -307,7 +307,7 @@ export default function DeckScreen() {
                 style={{
                   font: '700 9px/1 var(--font-tele)', letterSpacing: '.16em',
                   padding: '9px 14px', borderRadius: 7,
-                  border: '1px solid rgba(255,255,255,.16)', color: 'var(--ink-60)',
+                  border: 'var(--border-strong)', color: 'var(--ink-60)',
                 }}
               >
                 RETURN TO HAND
@@ -336,9 +336,9 @@ export default function DeckScreen() {
             style={{
               width: '100%', padding: '18px 0', borderRadius: 14,
               background: holding
-                ? 'linear-gradient(120deg,rgba(255,46,136,.3),rgba(76,227,255,.3))'
+                ? 'var(--vibe-hold-glow)'
                 : 'var(--booth-panel)',
-              border: `1px solid ${holding ? color : 'rgba(255,255,255,.12)'}`,
+              border: `1px solid ${holding ? color : 'var(--hairline)'}`,
               transform: holding ? 'scale(.985)' : 'none',
               transition: 'transform .12s ease, background .2s ease, border-color .2s ease',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,

@@ -14,6 +14,15 @@ import { useCallback, useEffect, useState } from 'react';
 export type Theme = 'light' | 'dark';
 const KEY = 'auxwars:theme';
 
+/**
+ * Mirrors --stage-black's dark-theme value in globals.css, for the one place
+ * that cannot reach a CSS custom property: the <meta name="theme-color">
+ * Next's Viewport API generates statically at build time (app/layout.tsx).
+ * Dark-first for the same reason useTheme() below is: no toggle is wired to
+ * this yet, and the app's identity is a dark stage.
+ */
+export const STAGE_BLACK_META = '#05050a';
+
 export function useTheme() {
   // Dark-first: the app's identity is a dark stage, and a light default
   // would flash white before the stored choice loads.

@@ -29,11 +29,11 @@ function initialsOf(name: string): string {
 type Tab = 'FEED' | 'PEOPLE';
 
 const KIND_ACCENT: Record<string, string> = {
-  reign_won: '#4ce3ff',
-  peak_moment: '#ffd84d',
-  card_pulled: '#ff8ac4',
+  reign_won: 'var(--neon-cyan)',
+  peak_moment: 'var(--neon-gold)',
+  card_pulled: 'var(--neon-rose)',
   followed: 'var(--ink-40)',
-  rsvp: '#ff2e88',
+  rsvp: 'var(--neon-pink)',
 };
 
 export default function SocialScreen() {
@@ -65,9 +65,9 @@ export default function SocialScreen() {
                 onClick={() => setTab(t)}
                 style={{
                   flex: 1, padding: '9px 0', borderRadius: 7,
-                  background: on ? 'var(--ink)' : 'rgba(255,255,255,.05)',
-                  border: `1px solid ${on ? 'var(--ink)' : 'rgba(255,255,255,.14)'}`,
-                  color: on ? '#0a0812' : 'var(--ink-60)',
+                  background: on ? 'var(--ink)' : 'var(--hairline)',
+                  border: `1px solid ${on ? 'var(--ink)' : 'var(--hairline)'}`,
+                  color: on ? 'var(--ink-on-neon)' : 'var(--ink-60)',
                   font: '700 9px/1 var(--font-tele)', letterSpacing: '.16em',
                 }}
               >
@@ -95,7 +95,7 @@ export default function SocialScreen() {
                   key={a.id}
                   style={{
                     display: 'flex', gap: 11, padding: '13px 2px',
-                    borderBottom: i < activity.length - 1 ? '1px solid rgba(255,255,255,.05)' : 'none',
+                    borderBottom: i < activity.length - 1 ? '1px solid var(--hairline)' : 'none',
                     alignItems: 'flex-start',
                   }}
                 >
@@ -176,8 +176,8 @@ export default function SocialScreen() {
                     style={{
                       padding: '8px 12px', borderRadius: 7, flexShrink: 0,
                       background: following ? 'transparent' : 'var(--neon-cyan)',
-                      border: `1px solid ${following ? 'rgba(255,255,255,.18)' : 'var(--neon-cyan)'}`,
-                      color: following ? 'var(--ink-60)' : '#041016',
+                      border: following ? 'var(--border-strong)' : '1px solid var(--neon-cyan)',
+                      color: following ? 'var(--ink-60)' : 'var(--ink-on-neon)',
                       font: '700 8px/1 var(--font-tele)', letterSpacing: '.14em',
                     }}
                   >

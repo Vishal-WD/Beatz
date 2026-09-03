@@ -11,16 +11,12 @@ import { useVibe } from '@/lib/useVibe';
 import { useSound } from '@/lib/useSound';
 import { VibeMeter } from '@/components/VibeMeter';
 import { NowPlaying } from '@/components/NowPlaying';
+import { PeakMomentBurst } from '@/components/PeakMomentBurst';
 import { vibeColor, avatarFor } from '@/lib/rarity';
 import { fetchChallengerLine, subscribeToRoom, type LinePlayer, type DbRoom } from '@/lib/supabase';
 import { useCards } from '@/lib/useCards';
 
 const RING_CIRCUMFERENCE = 1131; // 2πr, r=180
-
-interface Shard {
-  id: number;
-  style: React.CSSProperties;
-}
 
 /** The room this shared display is showing. */
 const ROOM_SLUG = 'basement-4am';
@@ -50,7 +46,6 @@ export default function ThroneRoom() {
   }, [dbRoom?.id]);
   const nowPlaying = cards.find((c) => c.rarity === 'epic') ?? cards[0];
   const [peak, setPeak] = useState(false);
-  const [shards, setShards] = useState<Shard[]>([]);
   const { vibe, firePeak } = useVibe({ stamina: nowPlaying.stamina, hype: nowPlaying.hype, control: 'contested' });
   const { play } = useSound();
   const peakTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -60,40 +55,12 @@ export default function ThroneRoom() {
   useEffect(() => () => clearTimeout(peakTimer.current), []);
 
   const onPeak = useCallback(() => {
-    // 54 shards, matching the design prototype's burst.
-    const next: Shard[] = Array.from({ length: 54 }, (_, id) => {
-      const a = Math.random() * Math.PI * 2;
-      const d = 180 + Math.random() * 380;
-      const c = ['#ffd84d', '#ff2e88', '#4ce3ff', '#7dffc3', '#fff'][
-        Math.floor(Math.random() * 5)
-      ];
-      return {
-        id,
-        style: {
-          position: 'absolute',
-          left: '50%',
-          top: '46%',
-          width: 3 + Math.random() * 7,
-          height: 8 + Math.random() * 18,
-          background: c,
-          borderRadius: 2,
-          ['--tx' as string]: `${Math.cos(a) * d}px`,
-          ['--ty' as string]: `${Math.sin(a) * d}px`,
-          ['--rot' as string]: `${Math.round(Math.random() * 720 - 360)}deg`,
-          animation: `shard ${1.1 + Math.random() * 0.7}s cubic-bezier(.2,.7,.3,1) ${
-            Math.random() * 0.18
-          }s forwards`,
-        },
-      };
-    });
-    setShards(next);
     setPeak(true);
     firePeak();
     play('peak');
     clearTimeout(peakTimer.current);
     peakTimer.current = setTimeout(() => {
       setPeak(false);
-      setShards([]);
     }, 2200);
   }, [firePeak, play]);
 
@@ -125,7 +92,7 @@ export default function ThroneRoom() {
             style={{
               font: '400 34px/1 var(--font-title)',
               textTransform: 'uppercase',
-              background: 'linear-gradient(92deg,#fff 10%,#4ce3ff 48%,#ff2e88 88%)',
+              background: 'linear-gradient(92deg,var(--ink) 10%,var(--neon-cyan) 48%,var(--neon-pink) 88%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
@@ -150,7 +117,7 @@ export default function ThroneRoom() {
               letterSpacing: '.14em',
               padding: '11px 15px',
               borderRadius: 8,
-              background: 'rgba(255,216,77,.12)',
+              background: 'var(--gold-wash)',
               border: '1px solid var(--neon-gold)',
               color: 'var(--neon-gold)',
             }}
@@ -191,7 +158,7 @@ export default function ThroneRoom() {
       <div style={{ display: 'grid', placeItems: 'center', position: 'relative' }}>
         <div style={{ position: 'relative', width: 420, height: 420, maxWidth: '100%' }}>
           <svg viewBox="0 0 420 420" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-            <circle cx="210" cy="210" r="180" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="16" />
+            <circle cx="210" cy="210" r="180" fill="none" style={{ stroke: 'var(--hairline)' }} strokeWidth="16" />
             <circle
               cx="210" cy="210" r="180" fill="none" strokeWidth="16" strokeLinecap="round"
               strokeDasharray={RING_CIRCUMFERENCE}
@@ -276,28 +243,8 @@ export default function ThroneRoom() {
         </div>
       </div>
 
-      {/* Peak Moment overlay */}
-      {peak && (
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 50 }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,216,77,.14)', animation: 'flash .9s ease-out forwards' }} />
-          {shards.map((s) => (
-            <div key={s.id} style={s.style} />
-          ))}
-          <div
-            style={{
-              position: 'absolute', left: '50%', top: '46%',
-              transform: 'translate(-50%,-50%)', textAlign: 'center',
-            }}
-          >
-            <div style={{ font: '400 56px/1 var(--font-title)', textTransform: 'uppercase', color: 'var(--neon-gold)' }}>
-              Peak Moment
-            </div>
-            <div style={{ font: '700 12px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink)', marginTop: 10 }}>
-              REIGN EXTENDED · +140 DROPS
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Peak Moment overlay — artwork, not theming; see components/PeakMomentBurst.tsx */}
+      <PeakMomentBurst active={peak} />
     </div>
   );
 }

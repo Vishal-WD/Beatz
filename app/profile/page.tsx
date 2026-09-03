@@ -165,9 +165,9 @@ export default function ProfileScreen() {
                   style={{
                     font: '700 8px/1 var(--font-tele)', letterSpacing: '.14em',
                     padding: '7px 10px', borderRadius: 6,
-                    background: on ? col : 'rgba(255,255,255,.05)',
-                    border: `1px solid ${on ? col : 'rgba(255,255,255,.14)'}`,
-                    color: on ? '#0a0812' : col,
+                    background: on ? col : 'var(--hairline)',
+                    border: `1px solid ${on ? col : 'var(--hairline)'}`,
+                    color: on ? 'var(--ink-on-neon)' : col,
                   }}
                 >
                   {f}

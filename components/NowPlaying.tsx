@@ -110,8 +110,8 @@ export function NowPlaying({
       <div
         style={
           expanded && !usePreview
-            ? { height: 200, overflow: 'hidden', background: '#000', transition: 'height .3s ease' }
-            : { height: 0, overflow: 'hidden', background: '#000' }
+            ? { height: 200, overflow: 'hidden', background: 'var(--video-backdrop)', transition: 'height .3s ease' }
+            : { height: 0, overflow: 'hidden', background: 'var(--video-backdrop)' }
         }
       >
         <div
@@ -152,9 +152,9 @@ export function NowPlaying({
               flexShrink: 0,
               display: 'grid',
               placeItems: 'center',
-              background: playing ? color : 'rgba(255,255,255,.06)',
-              border: `1px solid ${playing ? color : 'rgba(255,255,255,.16)'}`,
-              color: playing ? '#0a0812' : 'var(--ink)',
+              background: playing ? color : 'var(--hairline)',
+              border: playing ? `1px solid ${color}` : 'var(--border-strong)',
+              color: playing ? 'var(--ink-on-neon)' : 'var(--ink)',
               font: '400 15px/1 var(--font-body)',
               opacity: !usePreview && !ready && !error ? 0.45 : 1,
               transition: 'background .2s ease',
@@ -228,7 +228,7 @@ export function NowPlaying({
             style={{
               height: 3,
               borderRadius: 2,
-              background: 'rgba(255,255,255,.1)',
+              background: 'var(--hairline)',
               overflow: 'hidden',
             }}
           >

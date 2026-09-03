@@ -94,7 +94,7 @@ export default function SignInScreen() {
             font: '400 clamp(40px,12vw,58px)/.9 var(--font-title)',
             textTransform: 'uppercase',
             margin: '12px 0 6px',
-            background: 'linear-gradient(92deg,#fff 10%,#4ce3ff 48%,#ff2e88 88%)',
+            background: 'linear-gradient(92deg,var(--ink) 10%,var(--neon-cyan) 48%,var(--neon-pink) 88%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}
@@ -189,7 +189,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: '100%', padding: '12px 13px', borderRadius: 9,
-          background: 'var(--booth-panel)', border: '1px solid rgba(255,255,255,.14)',
+          background: 'var(--booth-panel)', border: '1px solid var(--hairline)',
           color: 'var(--ink)', font: '400 14px/1 var(--font-body)',
         }}
         {...rest}
@@ -200,20 +200,20 @@ function Field({
 
 const btnPrimary: React.CSSProperties = {
   padding: '14px 20px', borderRadius: 10, background: 'var(--neon-pink)',
-  color: '#0a0008', border: 'none', textDecoration: 'none',
+  color: 'var(--ink-on-neon)', border: 'none', textDecoration: 'none',
   font: '700 10px/1 var(--font-tele)', letterSpacing: '.16em', cursor: 'pointer',
   textAlign: 'center',
 };
 
 const btnGhost: React.CSSProperties = {
   padding: '13px 20px', borderRadius: 10, background: 'transparent',
-  border: '1px solid rgba(255,255,255,.16)', color: 'var(--ink-60)',
+  border: 'var(--border-strong)', color: 'var(--ink-60)',
   textDecoration: 'none', font: '700 10px/1 var(--font-tele)',
   letterSpacing: '.16em', cursor: 'pointer',
 };
 
 const warnBox: React.CSSProperties = {
   padding: '10px 12px', borderRadius: 8, marginBottom: 16,
-  background: 'rgba(255,216,77,.08)', border: '1px solid rgba(255,216,77,.3)',
+  background: 'var(--gold-wash)', border: '1px solid var(--gold-wash-border)',
   font: '400 9px/1.6 var(--font-tele)', letterSpacing: '.1em', color: 'var(--neon-gold)',
 };

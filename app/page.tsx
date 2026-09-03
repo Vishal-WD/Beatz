@@ -50,7 +50,7 @@ export default function Home() {
               font: '400 clamp(40px,14vw,64px)/.9 var(--font-title)',
               textTransform: 'uppercase',
               margin: '12px 0 0',
-              background: 'linear-gradient(92deg,#fff 10%,#4ce3ff 48%,#ff2e88 88%)',
+              background: 'linear-gradient(92deg,var(--ink) 10%,var(--neon-cyan) 48%,var(--neon-pink) 88%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
@@ -105,7 +105,7 @@ export default function Home() {
               href="/deck"
               style={{
                 display: 'block', textAlign: 'center', padding: '16px 0',
-                borderRadius: 10, background: 'var(--neon-cyan)', color: '#041016',
+                borderRadius: 10, background: 'var(--neon-cyan)', color: 'var(--ink-on-neon)',
                 textDecoration: 'none', font: '700 13px/1 var(--font-tele)', letterSpacing: '.16em',
               }}
             >
@@ -123,7 +123,7 @@ export default function Home() {
               href="/signin"
               style={{
                 display: 'block', textAlign: 'center', padding: '16px 0',
-                borderRadius: 10, background: 'var(--neon-pink)', color: '#1a0812',
+                borderRadius: 10, background: 'var(--neon-pink)', color: 'var(--ink-on-neon)',
                 textDecoration: 'none', font: '700 13px/1 var(--font-tele)', letterSpacing: '.16em',
               }}
             >

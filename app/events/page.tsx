@@ -60,9 +60,9 @@ export default function EventsScreen() {
                 style={{
                   font: '700 8px/1 var(--font-tele)', letterSpacing: '.14em',
                   padding: '7px 11px', borderRadius: 6,
-                  background: on ? 'var(--ink)' : 'rgba(255,255,255,.05)',
-                  border: `1px solid ${on ? 'var(--ink)' : 'rgba(255,255,255,.14)'}`,
-                  color: on ? '#0a0812' : 'var(--ink-60)',
+                  background: on ? 'var(--ink)' : 'var(--hairline)',
+                  border: `1px solid ${on ? 'var(--ink)' : 'var(--hairline)'}`,
+                  color: on ? 'var(--ink-on-neon)' : 'var(--ink-60)',
                 }}
               >
                 {f}
@@ -94,7 +94,7 @@ export default function EventsScreen() {
                         style={{
                           font: '700 7px/1 var(--font-tele)', letterSpacing: '.16em',
                           padding: '4px 6px', borderRadius: 4,
-                          background: 'rgba(0,0,0,.42)', color: '#fff',
+                          background: 'var(--scrim)', color: 'var(--ink-fixed)',
                         }}
                       >
                         {EVENT_KIND_LABEL[e.kind]}
@@ -104,18 +104,18 @@ export default function EventsScreen() {
                           style={{
                             font: '700 7px/1 var(--font-tele)', letterSpacing: '.16em',
                             padding: '4px 6px', borderRadius: 4,
-                            background: '#fff', color: '#0a0008',
+                            background: 'var(--ink-fixed)', color: 'var(--ink-on-neon)',
                             display: 'flex', alignItems: 'center', gap: 4,
                           }}
                         >
-                          <span style={{ width: 5, height: 5, borderRadius: 3, background: '#ff2e88',
+                          <span style={{ width: 5, height: 5, borderRadius: 3, background: 'var(--neon-pink)',
                                          animation: 'queue 1.6s ease-in-out infinite' }} />
                           LIVE
                         </span>
                       ) : (
                         <span style={{ font: '700 7px/1 var(--font-tele)', letterSpacing: '.14em',
                                        padding: '4px 6px', borderRadius: 4,
-                                       background: 'rgba(0,0,0,.42)', color: '#fff' }}>
+                                       background: 'var(--scrim)', color: 'var(--ink-fixed)' }}>
                           {relativeTime(e.startsAt).toUpperCase()}
                         </span>
                       )}
@@ -124,8 +124,8 @@ export default function EventsScreen() {
                       style={{
                         position: 'absolute', left: 12, bottom: 10, right: 12,
                         font: '400 26px/0.95 var(--font-title)',
-                        textTransform: 'uppercase', color: '#fff',
-                        textShadow: '0 2px 12px rgba(0,0,0,.45)',
+                        textTransform: 'uppercase', color: 'var(--ink-fixed)',
+                        textShadow: '0 2px 12px var(--scrim)',
                       }}
                     >
                       {e.title}
@@ -172,8 +172,8 @@ export default function EventsScreen() {
                       style={{
                         flex: 1, padding: '10px 0', borderRadius: 8,
                         background: rsvp === 'going' ? e.posterAccent : 'transparent',
-                        border: `1px solid ${rsvp ? e.posterAccent : 'rgba(255,255,255,.16)'}`,
-                        color: rsvp === 'going' ? '#0a0812' : rsvp ? e.posterAccent : 'var(--ink-60)',
+                        border: rsvp ? `1px solid ${e.posterAccent}` : 'var(--border-strong)',
+                        color: rsvp === 'going' ? 'var(--ink-on-neon)' : rsvp ? e.posterAccent : 'var(--ink-60)',
                         font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
                         opacity: full ? 0.4 : 1,
                         cursor: full ? 'not-allowed' : 'pointer',

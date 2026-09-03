@@ -128,7 +128,7 @@ function ChartRowView({
             style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
           />
         ) : (
-          <span style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(255,255,255,.06)', flexShrink: 0 }} />
+          <span style={{ width: 38, height: 38, borderRadius: 8, background: 'var(--hairline)', flexShrink: 0 }} />
         )}
 
         <span style={{ flex: 1, minWidth: 0 }}>
@@ -166,7 +166,7 @@ function ChartRowView({
         <div style={{ padding: '0 11px 12px' }}>
           <div
             style={{
-              height: 3, borderRadius: 2, background: 'rgba(255,255,255,.08)',
+              height: 3, borderRadius: 2, background: 'var(--hairline)',
               overflow: 'hidden', marginBottom: 9,
             }}
           >

@@ -14,6 +14,7 @@ import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
+import { SealedPack } from '@/components/SealedPack';
 import { useCards } from '@/lib/useCards';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
@@ -21,9 +22,6 @@ import { usePacks } from '@/lib/usePacks';
 
 const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
 const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP FOR THE NEXT CARD'];
-
-const TORN_CLIP =
-  'polygon(0 14%,9% 10%,20% 15%,32% 9%,45% 15%,58% 9%,70% 15%,82% 10%,92% 15%,100% 11%,100% 100%,0 100%)';
 
 export default function PacksScreen() {
   const [stage, setStage] = useState(0);
@@ -128,68 +126,9 @@ export default function PacksScreen() {
           {STEP_LABEL[stage]}
         </div>
 
-        {/* Spotlight behind the reveal */}
-        {spot && (
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '38%',
-              width: 460,
-              height: 460,
-              transform: 'translate(-50%,-50%)',
-              background: 'radial-gradient(circle,rgba(255,216,77,.22),transparent 65%)',
-              animation: 'spotgrow .7s ease-out forwards',
-              pointerEvents: 'none',
-            }}
-          />
-        )}
+        <SealedPack spotlight={spot} visible={packVisible} torn={stage >= 1} cost={pack.cost} />
 
         <div style={{ position: 'relative', width: '100%', height: 380, flexShrink: 0 }}>
-          {/* The pack */}
-          {packVisible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: 90,
-                transform: 'translateX(-50%)',
-                width: 176,
-                height: 244,
-                borderRadius: 14,
-                background: 'linear-gradient(150deg,#1b1130,#3b1050 55%,#12081f)',
-                border: '1px solid rgba(255,255,255,.14)',
-                clipPath: stage >= 1 ? TORN_CLIP : undefined,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                transition: 'clip-path .4s ease',
-                zIndex: 5,
-              }}
-            >
-              <span
-                style={{
-                  font: '400 34px/0.92 var(--font-title)',
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  background: 'linear-gradient(92deg,#fff,#ffd84d)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                Aux
-                <br />
-                Pack
-              </span>
-              <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em', color: 'var(--ink-40)' }}>
-                {pack.cost} DROPS · 5 CARDS
-              </span>
-            </div>
-          )}
-
           {/* The pulled card */}
           {cardOut && (
             <div
@@ -208,7 +147,7 @@ export default function PacksScreen() {
                 <div
                   style={{
                     width: 176, height: 244, borderRadius: 14,
-                    border: '1px dashed rgba(255,255,255,.14)',
+                    border: '1px dashed var(--hairline)',
                     display: 'grid', placeItems: 'center',
                     font: '400 8px/1 var(--font-tele)', letterSpacing: '.16em',
                     color: 'var(--ink-25)',

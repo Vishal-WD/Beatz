@@ -21,6 +21,47 @@
   --ink-25: rgba(244, 242, 255, 0.25);
   --hairline: rgba(255, 255, 255, 0.07);
 
+  /* Fixed-contrast text for sitting on a neon/bright chip. Neon backgrounds
+     do not change between themes, so the text on top of them must not
+     either -- this is not "ink", it never inverts. */
+  --ink-on-neon: #0a0812;
+
+  /* Dark overlay for legibility over illustration (event posters etc.),
+     not the app's surface system -- the artwork it sits on is itself
+     theme-invariant, so this is too. */
+  --scrim: rgba(0, 0, 0, 0.45);
+
+  /* Fixed light text for sitting on --scrim over illustration. Pairs with
+     --scrim the way --ink-on-neon pairs with the neon chips: the poster
+     underneath never inverts with theme, so neither does the label on it. */
+  --ink-fixed: #ffffff;
+
+  /* Sixth accent: the activity feed needed a distinct hue for "card
+     pulled" beyond the five reserved for rarity. Matches RARITY.legendary's
+     color in lib/rarity.ts, so a pulled-card notice reads as the same hue
+     as the card it names. Theme-invariant like the other neon-* tokens. */
+  --neon-rose: #ff8ac4;
+
+  /* Gold-tinted info surface (warning boxes, "event room" callouts) --
+     the wash/border pair repeats verbatim across screens. */
+  --gold-wash: rgba(255, 216, 77, 0.08);
+  --gold-wash-border: rgba(255, 216, 77, 0.3);
+
+  /* Deck's "Hold to Vibe" active-press background -- a single reusable UI
+     state, not artwork. */
+  --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.3), rgba(76, 227, 255, 0.3));
+
+  /* SongCardView's artwork viewport when a card has no cover art yet --
+     a fallback panel, styled to read as an empty art slot rather than a
+     literal surface, so it stays constant like the rarity foils it sits
+     beside. */
+  --art-slot: linear-gradient(150deg, #1a1a2e, #0d0d18);
+
+  /* The YouTube IFrame host's letterbox backdrop. Video players are black
+     regardless of app theme -- this is a player convention, not a surface
+     that should invert to white in light mode. */
+  --video-backdrop: #000;
+
   --font-title: Anton, Impact, sans-serif;
   --font-stat: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   --font-tele: 'JetBrains Mono', ui-monospace, monospace;
@@ -83,7 +124,14 @@
   --ink-25: rgba(10, 8, 18, 0.3);
 
   --hairline: rgba(10, 8, 18, 0.12);
-  --border-strong: rgba(10, 8, 18, 0.24);
+  --border-strong: 1px solid rgba(10, 8, 18, 0.24);
+
+  /* --ink-on-neon, --scrim, --ink-fixed, --neon-rose, --gold-wash,
+     --gold-wash-border, --vibe-hold-glow, --art-slot and --video-backdrop
+     are deliberately absent here for the same reason the neon-* accents
+     are: every one of them sits on (or is) a neon/bright/illustrated/fixed
+     surface that does not itself change with theme, so the value must not
+     change either. Same names, same values, both palettes. */
 }
 
 * {
