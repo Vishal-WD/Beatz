@@ -38,7 +38,16 @@ export function usePreviewAudio(url: string | null) {
 
     const onLoad = () => setDuration(a.duration || 0);
     const onTime = () => setElapsed(a.currentTime);
+    // 'play' fires when playback is *requested* (a.play() called); 'playing'
+    // fires when frames are actually advancing again — including after a
+    // 'waiting' stall resolves itself with no further a.play() call. Relying
+    // on 'play' alone left `state` stuck on 'loading' forever the moment a
+    // preview buffered mid-stream: 'waiting' fired, flipping state away from
+    // 'playing', and nothing ever flipped it back even though the browser
+    // resumed on its own a moment later. That silently broke the PLAYING
+    // badge and TAP TO STOP affordance while audio kept running underneath.
     const onPlay = () => setState('playing');
+    const onPlaying = () => setState('playing');
     const onPause = () => setState((s) => (s === 'ended' ? s : 'paused'));
     const onEnd = () => setState('ended');
     const onErr = () => setState('error');
@@ -47,6 +56,7 @@ export function usePreviewAudio(url: string | null) {
     a.addEventListener('loadedmetadata', onLoad);
     a.addEventListener('timeupdate', onTime);
     a.addEventListener('play', onPlay);
+    a.addEventListener('playing', onPlaying);
     a.addEventListener('pause', onPause);
     a.addEventListener('ended', onEnd);
     a.addEventListener('error', onErr);
@@ -57,6 +67,7 @@ export function usePreviewAudio(url: string | null) {
       a.removeEventListener('loadedmetadata', onLoad);
       a.removeEventListener('timeupdate', onTime);
       a.removeEventListener('play', onPlay);
+      a.removeEventListener('playing', onPlaying);
       a.removeEventListener('pause', onPause);
       a.removeEventListener('ended', onEnd);
       a.removeEventListener('error', onErr);

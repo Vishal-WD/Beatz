@@ -6,7 +6,7 @@
  * template as a Song Card, different data source.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
@@ -41,22 +41,36 @@ export default function ProfileScreen() {
   // the whole binder, never one per card, so playback can never overlap.
   const [playingId, setPlayingId] = useState<string | null>(null);
   const playingCard = owned.find((c) => c.id === playingId) ?? null;
-  const { playing, toggle: togglePreview, stop: stopPreview } = usePreviewAudio(
-    playingCard?.previewUrl ?? null,
-  );
+  const previewUrl = playingCard?.previewUrl ?? null;
+  const { playing, toggle: togglePreview, stop: stopPreview } = usePreviewAudio(previewUrl);
+
+  // usePreviewAudio only builds an <audio> element once its url effect has
+  // run for the NEW id — the togglePreview captured by handleCardTap's own
+  // render is still bound to the previous (possibly null) url and would
+  // no-op. Recording the intent and acting on it from an effect keyed on
+  // the resolved url means the effect always sees the CURRENT togglePreview,
+  // the one actually wired to the new <audio> element.
+  const pendingPlayRef = useRef<string | null>(null);
 
   const handleCardTap = (c: SongCard) => {
     if (!c.previewUrl) return;
     if (playingId === c.id) {
       stopPreview();
       setPlayingId(null);
+      pendingPlayRef.current = null;
       return;
     }
+    pendingPlayRef.current = c.id;
     setPlayingId(c.id);
-    // usePreviewAudio only has an element once its url effect has run for
-    // the new id, so let the toggle happen on the next tick.
-    setTimeout(() => togglePreview(), 0);
   };
+
+  useEffect(() => {
+    if (!previewUrl) return;
+    if (pendingPlayRef.current !== playingId) return;
+    if (playing) return;
+    pendingPlayRef.current = null;
+    togglePreview();
+  }, [previewUrl, playingId, playing, togglePreview]);
 
   // Edit display name — the only identity field a player can change
   // themselves. The handle is generated at signup and read-only: other
@@ -64,6 +78,7 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = useState(profile.display_name);
   const [nameSaving, setNameSaving] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
+  const [nameError, setNameError] = useState(false);
   useEffect(() => { setNameDraft(profile.display_name); }, [profile.display_name]);
 
   const saveName = async () => {
@@ -71,11 +86,15 @@ export default function ProfileScreen() {
     if (!trimmed || trimmed === profile.display_name) return;
     setNameSaving(true);
     setNameSaved(false);
+    setNameError(false);
     const ok = await updateDisplayName(trimmed);
     setNameSaving(false);
     if (ok) {
       setNameSaved(true);
       setTimeout(() => setNameSaved(false), 2000);
+    } else {
+      setNameError(true);
+      setTimeout(() => setNameError(false), 2500);
     }
   };
 
@@ -94,6 +113,22 @@ export default function ProfileScreen() {
   );
   const languages = useMemo(() => languagesIn(owned), [owned]);
   const rarityCounts = useMemo(() => countsByRarity(owned), [owned]);
+
+  // A filter change can drop the currently-playing card out of view. Its
+  // PLAYING badge and TAP TO STOP affordance vanish with it, so leaving the
+  // audio running would be uncontrollable — stop it the moment the card it
+  // belongs to is no longer in the filtered binder. Only fires when the
+  // playing card actually leaves the list, not on every filter change.
+  useEffect(() => {
+    if (!playingId) return;
+    if (binder.some((c) => c.id === playingId)) return;
+    stopPreview();
+    setPlayingId(null);
+    pendingPlayRef.current = null;
+    // binder is the only dependency that should retrigger this — playingId/
+    // stopPreview changing on their own must not stop playback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [binder]);
 
   if (isLoading) {
     return (
@@ -203,6 +238,11 @@ export default function ProfileScreen() {
                 {nameSaved && (
                   <span style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.1em', color: 'var(--neon-mint)' }}>
                     SAVED
+                  </span>
+                )}
+                {nameError && (
+                  <span style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.1em', color: 'var(--neon-pink)' }}>
+                    SAVE FAILED
                   </span>
                 )}
                 <span style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.1em', color: 'var(--ink-25)', marginLeft: 'auto' }}>
@@ -328,12 +368,35 @@ export default function ProfileScreen() {
               const isPlaying = playingId === c.id && playing;
               const canPlay = Boolean(c.previewUrl);
               return (
-                <div key={c.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div
+                  key={c.id}
+                  // The "TAP TO PLAY"/"TAP TO STOP" label used to sit outside
+                  // the card's own onClick, as a plain sibling span — it read
+                  // as part of the tap target but silently ate clicks. The
+                  // handler now lives on this shared wrapper so the whole
+                  // card-plus-label group is one tap target; role/tabIndex/
+                  // onKeyDown are restated here since SongCardView no longer
+                  // gets onClick directly (that would double-fire on a card
+                  // click, since the click still bubbles up to this div).
+                  onClick={canPlay ? () => handleCardTap(c) : undefined}
+                  role={canPlay ? 'button' : undefined}
+                  tabIndex={canPlay ? 0 : undefined}
+                  onKeyDown={
+                    canPlay
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleCardTap(c);
+                          }
+                        }
+                      : undefined
+                  }
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: canPlay ? 'pointer' : 'default' }}
+                >
                   <div style={{ position: 'relative' }}>
                     <SongCardView
                       card={c}
                       size="sm"
-                      onClick={canPlay ? () => handleCardTap(c) : undefined}
                       style={!canPlay ? { opacity: 0.55 } : undefined}
                     />
                     {isPlaying && (
