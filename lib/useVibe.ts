@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { VIBE_TICK_MS } from '@/types/game';
 import type { ControlModel } from './domain/formats';
+import { mintPeakMoment } from './supabase';
 import { startReign, tickReign, VIBE_MAX, type ReignState, type EndReason } from './domain/reign';
 
 interface Options {
@@ -28,6 +29,12 @@ interface Options {
   control: ControlModel;
   /** True when nobody else is in the room — labeled practice, never hidden. */
   soloPractice?: boolean;
+  /**
+   * The server-side reign this hook is driving. When absent (Solo Practice,
+   * or before a reign row exists) a Peak Moment mints nothing — there is no
+   * reign to attribute it to, and inventing one would mint free legendaries.
+   */
+  reignId?: string | null;
 }
 
 export function useVibe({
@@ -35,10 +42,12 @@ export function useVibe({
   hype,
   control,
   soloPractice = true,
+  reignId = null,
 }: Options) {
   const state = useRef<ReignState>(startReign(hype, Date.now()));
   const [vibe, setVibe] = useState(state.current.vibe);
   const [ended, setEnded] = useState<EndReason | null>(state.current.endedReason);
+  const [mintedCardId, setMintedCardId] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
   const [hold, setHold] = useState(0);
   const holdingRef = useRef(false);
@@ -46,6 +55,8 @@ export function useVibe({
   // Skip this effect's first run so mount doesn't call startReign() twice —
   // a later `hype` change (a new card played) still must re-seed it.
   const mounted = useRef(false);
+  /** Peak count already acted on, so one crossing mints at most once. */
+  const peaksSeen = useRef(0);
 
   useEffect(() => {
     holdingRef.current = holding;
@@ -84,11 +95,28 @@ export function useVibe({
       setVibe(state.current.vibe);
       setEnded(state.current.endedReason);
 
+      /*
+        A Peak Moment mints a Legendary (CLAUDE.md §3, path 2). Fire on the
+        RISING EDGE only — tickReign increments peakMoments when the vibe
+        crosses into 100, so comparing against the previous count means a
+        vibe sitting at 100 mints once, not once per tick. The server
+        enforces the same rule on the reign row, so this is a UI nicety
+        rather than the guard.
+      */
+      if (state.current.peakMoments > peaksSeen.current) {
+        peaksSeen.current = state.current.peakMoments;
+        if (reignId) {
+          void mintPeakMoment(reignId).then((id) => {
+            if (id) setMintedCardId(id);
+          });
+        }
+      }
+
       setHold((h) => (holdingRef.current ? Math.min(100, h + 9) : Math.max(0, h - 12)));
     }, VIBE_TICK_MS);
 
     return () => clearInterval(tick);
-  }, [stamina, control, soloPractice]);
+  }, [stamina, control, soloPractice, reignId]);
 
   const startHold = useCallback(() => setHolding(true), []);
   const endHold = useCallback(() => setHolding(false), []);
@@ -107,5 +135,7 @@ export function useVibe({
     endHold,
     firePeak,
     ended,
+    /** Card minted by a Peak Moment this reign, if any (CLAUDE.md §3). */
+    mintedCardId,
   };
 }

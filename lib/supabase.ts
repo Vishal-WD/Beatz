@@ -135,6 +135,31 @@ export interface DbEvent {
 // white-screening.
 // ---------------------------------------------------------------------------
 
+/**
+ * Mints a Legendary for a live Peak Moment. Returns the card id, or null
+ * when this reign has already minted.
+ *
+ * CLAUDE.md §3 allows exactly two legendary paths and this is the second.
+ * The reign row itself is the guard — one mint per reign — so a vibe parked
+ * at 100 cannot farm them.
+ */
+export async function mintPeakMoment(reignId: string): Promise<string | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data, error } = await db.rpc('mint_peak_moment', {
+    p_user: auth.user.id,
+    p_reign: reignId,
+  });
+  if (error) {
+    console.warn('[supabase] mintPeakMoment:', error.message);
+    return null;
+  }
+  return (data as string) ?? null;
+}
+
 export interface PackPull {
   cardId: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
