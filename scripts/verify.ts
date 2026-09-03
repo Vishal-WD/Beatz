@@ -14,7 +14,8 @@ import { deriveStats, rarityForP, supplyTotal, decayRateFor, startingVibeFor,
   compositePopularity, HYPE_STAMINA_MIN, HYPE_STAMINA_MAX } from '../lib/stats';
 import { RARITY } from '../lib/rarity';
 import { GENERATED_CARDS } from '../lib/generated-cards';
-import { ALL_CARDS, LISTINGS, STARTING_HAND } from '../lib/seed-data';
+import { buildChart } from '../lib/domain/chart';
+import { ALL_CARDS, STARTING_HAND } from '../lib/seed-data';
 import { EVENTS } from '../lib/social-data';
 import type { Rarity } from '../types/cards';
 
@@ -166,10 +167,20 @@ check('opening hand spans more than one rarity',
 check('a legendary exists for the pack money-shot (DEMO_FALLBACKS)',
   ALL_CARDS.some((c) => c.rarity === 'legendary'));
 
-check('marketplace listings are ordered by value',
-  LISTINGS.every((l, i) =>
-    i === 0 || parseInt(LISTINGS[i - 1].topOffer.replace(/,/g, ''), 10)
-      >= parseInt(l.topOffer.replace(/,/g, ''), 10)));
+// The marketplace listings this used to check were invented offer amounts
+// on a screen with no bids table behind it. The chart now ranks by real
+// scarcity instead, so the invariant worth holding is that the ranking is
+// monotonic in scarcity — a less-claimed card must never outrank a
+// more-claimed one.
+check('world chart ranks by descending scarcity',
+  (() => {
+    const chart = buildChart(ALL_CARDS.map((c) => ({
+      cardId: c.id, title: c.title, subtitle: c.subtitle, rarity: c.rarity,
+      artworkUrl: c.artworkUrl,
+      supplyTotal: c.supplyTotal, supplyRemaining: c.supplyRemaining,
+    })));
+    return chart.every((e, i) => i === 0 || chart[i - 1].scarcity >= e.scarcity);
+  })());
 
 // ---------------------------------------------------------------------------
 section('SOCIAL LAYER GUARD RAILS (CLAUDE.md §1.1)');

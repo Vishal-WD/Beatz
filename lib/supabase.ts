@@ -16,6 +16,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { ChartRow } from './domain/chart';
 import type { FeedSources } from './domain/activity';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
@@ -158,6 +159,31 @@ export async function mintPeakMoment(reignId: string): Promise<string | null> {
     return null;
   }
   return (data as string) ?? null;
+}
+
+/**
+ * Rows for the world chart. Scarcity is derived in lib/domain/chart.ts —
+ * this only fetches what the database already tracks.
+ */
+export async function fetchChartRows(): Promise<ChartRow[] | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data, error } = await db
+    .from('cards')
+    .select('id, title, subtitle, rarity, artwork_url, supply_total, supply_remaining');
+  if (error) {
+    console.warn('[supabase] fetchChartRows:', error.message);
+    return null;
+  }
+  return (data ?? []).map((c) => ({
+    cardId: c.id,
+    title: c.title,
+    subtitle: c.subtitle,
+    rarity: c.rarity,
+    artworkUrl: c.artwork_url,
+    supplyTotal: c.supply_total,
+    supplyRemaining: c.supply_remaining,
+  }));
 }
 
 export interface PackPull {

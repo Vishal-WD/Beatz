@@ -1,198 +1,205 @@
 'use client';
 
 /**
- * Screen 06 — World Chart (the marketplace).
- * Rows expand to ranked bids.
+ * Screen 06 — World Chart.
  *
- * Drops are EARN-ONLY (CLAUDE.md §3). There is deliberately no "buy Drops"
- * entry point anywhere on this screen — a real-money path alongside a
- * marketplace is a loot-box regulatory risk, and that constraint does not
- * relax just because we sideload the APK rather than ship to Play (§7.1).
+ * This screen used to be a marketplace: rows expanded into "RANKED BIDS"
+ * listing invented Drop amounts against four hardcoded player names, with
+ * OFFERS and OFFER_COUNTS arrays supplying equally invented totals, above
+ * buttons that did nothing. No bid, offer or trade has ever existed in this
+ * app — there is no bids table and no trade path.
+ *
+ * It is not a gap to fill in either. CLAUDE.md §3 keeps Drops earn-only
+ * *alongside* a card-sell path precisely because the combination is a real
+ * loot-box regulatory risk, and that constraint does not relax just because
+ * we sideload the APK rather than ship to Play (§7.1).
+ *
+ * What is real, and already tracked, is scarcity: supply is finite and every
+ * pull decrements it. So the chart ranks what the room has actually claimed.
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { useSound } from '@/lib/useSound';
-import { RARITY, avatarFor } from '@/lib/rarity';
-import { BIDS } from '@/lib/seed-data';
-import { useCards } from '@/lib/useCards';
-import { useAuth } from '@/lib/useAuth';
+import { RARITY } from '@/lib/rarity';
+import { fetchChartRows } from '@/lib/supabase';
+import { buildChart, type ChartEntry, type ChartRow } from '@/lib/domain/chart';
+import { EmptyState } from '@/components/ui';
 
-const RARITY_ORDER = { legendary: 0, epic: 1, rare: 2, common: 3 } as const;
-const OFFERS = ['4,820', '3,140', '1,760', '1,205', '640', '115'];
-const OFFER_COUNTS = [31, 22, 14, 9, 6, 3];
+type LoadState = 'loading' | 'ready' | 'empty';
 
 export default function ChartScreen() {
   const { play } = useSound();
-  const { cards } = useCards();
-  const { profile } = useAuth();
-  const [openId, setOpenId] = useState<string | null>('l1');
+  const [rows, setRows] = useState<ChartRow[]>([]);
+  const [state, setState] = useState<LoadState>('loading');
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  // Ordered by rarity: a common outranking a legendary would read as a bug
-  // in the economy rather than a listing.
-  const LISTINGS = [...cards]
-    .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity])
-    .slice(0, 6)
-    .map((card, i) => ({ id: `l${i}`, card, topOffer: OFFERS[i], offerCount: OFFER_COUNTS[i] }));
+  useEffect(() => {
+    let cancelled = false;
+    void fetchChartRows().then((r) => {
+      if (cancelled) return;
+      setRows(r ?? []);
+      setState(r && r.length > 0 ? 'ready' : 'empty');
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const chart = useMemo(() => buildChart(rows, 40), [rows]);
 
   return (
     <PhoneShell>
       <div style={{ padding: '4px 16px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-          <div>
-            <div style={{ font: '400 26px/1 var(--font-title)', textTransform: 'uppercase' }}>World Chart</div>
-            <div style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--neon-mint)', marginTop: 6 }}>
-              OPEN OFFERS · LIVE
-            </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ font: '400 26px/1 var(--font-title)', textTransform: 'uppercase' }}>
+            World Chart
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em', color: 'var(--ink-40)' }}>
-              YOUR DROPS
-            </div>
-            <div style={{ font: '700 20px/1 var(--font-stat)', color: 'var(--neon-gold)', marginTop: 4 }}>
-              {profile.drops.toLocaleString()}
-            </div>
+          <div
+            style={{
+              font: '400 8px/1 var(--font-tele)', letterSpacing: '.2em',
+              color: 'var(--neon-cyan)', marginTop: 6,
+            }}
+          >
+            {state === 'ready' ? `${chart.length} CARDS · RANKED BY SCARCITY` : 'LOADING'}
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {LISTINGS.map((l) => {
-            const r = RARITY[l.card.rarity];
-            const open = openId === l.id;
+        {state === 'loading' && (
+          <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.16em', color: 'var(--ink-25)' }}>
+            LOADING…
+          </div>
+        )}
 
-            return (
-              <div
-                key={l.id}
-                style={{
-                  borderRadius: 12,
-                  background: open ? 'rgba(255,255,255,.055)' : 'rgba(255,255,255,.028)',
-                  border: `1px solid ${open ? r.color : 'rgba(255,255,255,.08)'}`,
-                  overflow: 'hidden',
-                  transition: 'border-color .2s ease, background .2s ease',
-                }}
-              >
-                <button
-                  onClick={() => { setOpenId(open ? null : l.id); play('tap'); }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: 11, textAlign: 'left' }}
-                  aria-expanded={open}
-                >
-                  {/* Rarity swatch stands in for cover art at row scale */}
-                  <div style={{ width: 42, height: 56, borderRadius: 7, background: r.frame, flexShrink: 0, padding: 2 }}>
-                    <div style={{ width: '100%', height: '100%', borderRadius: 5, background: 'var(--booth-panel)' }} />
-                  </div>
+        {state === 'empty' && (
+          <EmptyState
+            title="NO CARDS YET"
+            hint="The chart fills in as cards are minted and claimed."
+          />
+        )}
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        font: '400 15px/1.1 var(--font-title)', textTransform: 'uppercase',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {l.card.title}
-                    </div>
-                    <div
-                      style={{
-                        font: '500 8px/1 var(--font-tele)', letterSpacing: '.1em',
-                        color: 'var(--ink-40)', marginTop: 4,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {l.card.subtitle}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
-                      <span
-                        style={{
-                          font: '700 7px/1 var(--font-tele)', letterSpacing: '.1em',
-                          padding: '3px 5px', borderRadius: 4,
-                          background: r.badgeBg, color: r.badgeColor,
-                        }}
-                      >
-                        {r.label}
-                      </span>
-                      <span style={{ font: '400 7px/1 var(--font-tele)', letterSpacing: '.1em', color: 'var(--ink-40)' }}>
-                        {l.offerCount} OFFERS
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ font: '400 7px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)' }}>
-                      TOP OFFER
-                    </div>
-                    <div style={{ font: '700 19px/1 var(--font-stat)', color: r.color, marginTop: 3 }}>{l.topOffer}</div>
-                    <div style={{ font: '400 7px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 3 }}>
-                      DROPS {open ? '▲' : '▼'}
-                    </div>
-                  </div>
-                </button>
-
-                {open && (
-                  <div style={{ padding: '0 11px 12px' }}>
-                    <div
-                      style={{
-                        font: '400 8px/1 var(--font-tele)', letterSpacing: '.2em',
-                        color: 'var(--ink-40)', margin: '4px 0 9px',
-                      }}
-                    >
-                      RANKED BIDS
-                    </div>
-
-                    {BIDS.map((b, i) => (
-                      <div key={b.rank} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0' }}>
-                        <span style={{ font: '700 10px/1 var(--font-stat)', color: 'var(--ink-40)', width: 14 }}>
-                          {b.rank}
-                        </span>
-                        <span
-                          style={{
-                            width: 26, height: 26, borderRadius: 8,
-                            background: avatarFor(b.initials),
-                            display: 'grid', placeItems: 'center',
-                            font: '700 9px/1 var(--font-stat)', flexShrink: 0,
-                          }}
-                        >
-                          {b.initials}
-                        </span>
-                        <span style={{ flex: 1, font: '500 10px/1 var(--font-tele)', letterSpacing: '.08em', color: 'var(--ink-60)' }}>
-                          {b.name}
-                        </span>
-                        <span
-                          style={{
-                            font: '700 14px/1 var(--font-stat)',
-                            color: i === 0 ? 'var(--neon-gold)' : 'var(--ink-60)',
-                          }}
-                        >
-                          {b.amount}
-                        </span>
-                      </div>
-                    ))}
-
-                    <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
-                      <button
-                        style={{
-                          flex: 1, padding: '11px 0', borderRadius: 8,
-                          background: r.color, color: '#0a0812',
-                          font: '700 9px/1 var(--font-tele)', letterSpacing: '.16em',
-                        }}
-                      >
-                        PLACE OFFER
-                      </button>
-                      <button
-                        style={{
-                          flex: 1, padding: '11px 0', borderRadius: 8,
-                          border: '1px solid rgba(255,255,255,.16)', color: 'var(--ink-60)',
-                          font: '700 9px/1 var(--font-tele)', letterSpacing: '.16em',
-                        }}
-                      >
-                        WATCH
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {state === 'ready' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {chart.map((e) => (
+              <ChartRowView
+                key={e.cardId}
+                entry={e}
+                open={openId === e.cardId}
+                onToggle={() => { setOpenId(openId === e.cardId ? null : e.cardId); play('tap'); }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </PhoneShell>
+  );
+}
+
+function ChartRowView({
+  entry, open, onToggle,
+}: { entry: ChartEntry; open: boolean; onToggle: () => void }) {
+  const r = RARITY[entry.rarity];
+  const claimed = entry.supplyTotal - entry.supplyRemaining;
+  const pct = Math.round(entry.scarcity * 100);
+
+  return (
+    <div
+      style={{
+        borderRadius: 12, overflow: 'hidden',
+        background: 'var(--booth-panel)',
+        border: `1px solid ${open ? r.color : 'var(--hairline)'}`,
+      }}
+    >
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: 11, background: 'transparent', border: 'none', textAlign: 'left',
+        }}
+      >
+        <span style={{ font: '700 12px/1 var(--font-stat)', color: 'var(--ink-40)', width: 20, flexShrink: 0 }}>
+          {entry.rank}
+        </span>
+
+        {entry.artworkUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={entry.artworkUrl}
+            alt=""
+            style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+          />
+        ) : (
+          <span style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(255,255,255,.06)', flexShrink: 0 }} />
+        )}
+
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              display: 'block', font: '400 15px/1.05 var(--font-title)',
+              textTransform: 'uppercase', overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >
+            {entry.title}
+          </span>
+          <span
+            style={{
+              display: 'block', font: '500 8px/1 var(--font-tele)', letterSpacing: '.1em',
+              color: 'var(--ink-40)', marginTop: 4, overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >
+            {entry.subtitle}
+          </span>
+        </span>
+
+        <span style={{ textAlign: 'right', flexShrink: 0 }}>
+          <span style={{ display: 'block', font: '700 17px/1 var(--font-stat)', color: r.color }}>
+            {pct}%
+          </span>
+          <span style={{ display: 'block', font: '400 7px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 3 }}>
+            CLAIMED
+          </span>
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 11px 12px' }}>
+          <div
+            style={{
+              height: 3, borderRadius: 2, background: 'rgba(255,255,255,.08)',
+              overflow: 'hidden', marginBottom: 9,
+            }}
+          >
+            <div style={{ width: `${pct}%`, height: '100%', background: r.color }} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <Stat label="CLAIMED" value={claimed.toLocaleString()} />
+            <Stat label="REMAINING" value={entry.supplyRemaining.toLocaleString()} />
+            <Stat label="PRINTED" value={entry.supplyTotal.toLocaleString()} />
+          </div>
+
+          <div
+            style={{
+              font: '400 7px/1.6 var(--font-tele)', letterSpacing: '.1em',
+              color: 'var(--ink-25)', marginTop: 10,
+            }}
+          >
+            {r.tag} · SUPPLY IS FINITE AND EVERY PULL DECREMENTS IT
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ font: '700 13px/1 var(--font-stat)', color: 'var(--ink)' }}>{value}</div>
+      <div style={{ font: '400 7px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 3 }}>
+        {label}
+      </div>
+    </div>
   );
 }

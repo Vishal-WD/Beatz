@@ -151,31 +151,6 @@ export interface Listing {
   offerCount: number;
 }
 
-/**
- * Listings are ordered by top offer, so they must be sorted by rarity —
- * a common outranking a legendary would read as a bug in the economy.
- */
-const RARITY_ORDER: Record<Rarity, number> = { legendary: 0, epic: 1, rare: 2, common: 3 };
-const OFFERS = ['4,820', '3,140', '1,760', '1,205', '640', '115'];
-const OFFER_COUNTS = [31, 22, 14, 9, 6, 3];
-
-export const LISTINGS: Listing[] = [...ALL_CARDS]
-  .sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity])
-  .slice(0, 6)
-  .map((card, i) => ({
-    id: `l${i}`,
-    card,
-    topOffer: OFFERS[i],
-    offerCount: OFFER_COUNTS[i],
-  }));
-
-export const BIDS = [
-  { rank: 1, name: 'MAYA J.',  amount: '4,820', initials: 'MJ' },
-  { rank: 2, name: 'DOM R.',   amount: '4,410', initials: 'DR' },
-  { rank: 3, name: 'SASHA V.', amount: '3,900', initials: 'SV' },
-  { rank: 4, name: 'ELI T.',   amount: '3,225', initials: 'ET' },
-];
-
 /** Current player — screen 05. */
 export const CURRENT_PLAYER = {
   id: 'p-rae',
