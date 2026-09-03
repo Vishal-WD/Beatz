@@ -1,3 +1,4 @@
+import type { FormatId } from '../lib/domain/formats';
 /**
  * Game state types — the core loop (CLAUDE.md §1):
  *   Hold throne → Vibe Bar sustains or decays → dethrone/defend → next Challenger
@@ -46,6 +47,16 @@ export interface Reign {
 export interface RoomState {
   roomId: string;
   mode: RoomMode;
+  /**
+   * Which of the six formats this room runs, and therefore which control
+   * model governs it (CLAUDE.md §1.1). Without this the server cannot tell
+   * a Concert from a Disco and dethrones in every room — which breaks the
+   * rule that a spectator set is scored by vibe but never ended by it.
+   *
+   * Independent of `mode`: `format` decides who may take the throne,
+   * `mode` decides which cards may be played. Never merge them (§1.1).
+   */
+  format: FormatId;
   name: string;
   vibe: number;
   reign: Reign | null;
