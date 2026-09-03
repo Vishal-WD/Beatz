@@ -21,7 +21,7 @@ const FILTERS: Array<'ALL' | Uppercase<Rarity>> = ['ALL', 'COMMON', 'RARE', 'EPI
 
 export default function ProfileScreen() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('ALL');
-  const { profile, isSignedIn, signOut } = useAuth();
+  const { profile, isSignedIn, isLoading, signOut } = useAuth();
   /*
     The binder is the player's OWN collection. It used to render the whole
     global catalogue, so every player's binder looked identical and showed
@@ -46,6 +46,24 @@ export default function ProfileScreen() {
         : owned.filter((c) => c.rarity === filter.toLowerCase()),
     [filter, owned],
   );
+
+  if (isLoading) {
+    return (
+      <PhoneShell>
+        <div
+          style={{
+            padding: 'var(--sp-7)',
+            textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)',
+            letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </PhoneShell>
+    );
+  }
 
   return (
     <PhoneShell>

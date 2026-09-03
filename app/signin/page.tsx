@@ -16,7 +16,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { signIn, signUp, isSignedIn, profile, signOut } = useAuth();
+  const { signIn, signUp, isSignedIn, isLoading, profile, signOut } = useAuth();
   const { play } = useSound();
 
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -41,6 +41,24 @@ export default function SignInScreen() {
     } else {
       setMsg(res.message);
     }
+  }
+
+  if (isLoading) {
+    return (
+      <Shell>
+        <div
+          style={{
+            padding: 'var(--sp-7)',
+            textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)',
+            letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </Shell>
+    );
   }
 
   if (isSignedIn) {

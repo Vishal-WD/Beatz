@@ -42,7 +42,7 @@ export default function DeckScreen() {
   const { play } = useSound();
   const haptic = useHaptics();
   const { cards, source } = useCards();
-  const { profile, isSignedIn } = useAuth();
+  const { profile, isSignedIn, isLoading } = useAuth();
   const { cards: owned, owned: hasCollection } = useOwnedCards();
 
   /*
@@ -184,6 +184,24 @@ export default function DeckScreen() {
     play('warn');
     haptic('warning');
   }, [play, haptic]);
+
+  if (isLoading) {
+    return (
+      <PhoneShell>
+        <div
+          style={{
+            padding: 'var(--sp-7)',
+            textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)',
+            letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </PhoneShell>
+    );
+  }
 
   return (
     <PhoneShell>

@@ -15,10 +15,28 @@ import { useAuth } from '@/lib/useAuth';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 
 export default function Home() {
-  const { profile, isSignedIn } = useAuth();
+  const { profile, isSignedIn, isLoading } = useAuth();
   const { cards: owned, state: ownedState } = useOwnedCards();
 
   const collectionKnown = isSignedIn && ownedState === 'owned';
+
+  if (isLoading) {
+    return (
+      <PhoneShell>
+        <div
+          style={{
+            padding: 'var(--sp-7)',
+            textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)',
+            letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </PhoneShell>
+    );
+  }
 
   return (
     <PhoneShell>

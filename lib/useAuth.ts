@@ -136,6 +136,13 @@ export function useAuth() {
     profile,
     error,
     isSignedIn: state === 'signed-in',
+    /*
+      Distinguish "not known yet" from "known to be signed out". Screens
+      that branch on isSignedIn alone render their signed-out view during
+      the initial session check, which is the sign-in flash on every load.
+    */
+    isLoading: state === 'loading',
+    isAnonymous: state === 'anonymous',
     signIn,
     signUp,
     signOut,
