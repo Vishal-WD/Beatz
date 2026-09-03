@@ -26,7 +26,7 @@ export function useOnboarding() {
       !isLoading &&
       isSignedIn &&
       !finished &&
-      (profile as { onboarded_at?: string | null }).onboarded_at == null,
+      profile.onboarded_at == null,
     finish,
   };
 }

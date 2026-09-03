@@ -26,16 +26,23 @@ import { useHaptics } from '@/lib/useHaptics';
 
 type Stage = 'greet' | 'open' | 'done';
 
+// How long to show the spinner before offering an escape. The grant is
+// server-side and already committed by the time this screen loads, so this
+// is not "give up and assume failure" -- it's "stop leaving the player with
+// nothing to do while we wait."
+const STARTER_PACK_TIMEOUT_MS = 10_000;
+
 export default function WelcomeScreen() {
   const router = useRouter();
   const { isLoading, isSignedIn, profile } = useAuth();
-  const { cards, owned } = useOwnedCards();
+  const { cards, owned, refetch } = useOwnedCards();
   const { finish } = useOnboarding();
   const { play } = useSound();
   const haptic = useHaptics();
 
   const [stage, setStage] = useState<Stage>('greet');
   const [revealed, setRevealed] = useState(0);
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
 
   /*
     A returning player (onboarded_at already set) landed here by a guessed
@@ -70,8 +77,27 @@ export default function WelcomeScreen() {
     play('packTear');
     haptic('medium');
     setRevealed(0);
+    setWaitedTooLong(false);
     setStage('open');
   }, [play, haptic]);
+
+  // The starter-pack grant is server-side and already committed before this
+  // screen ever renders -- but replica lag (or a genuinely failed grant)
+  // can leave `owned` false for a while. Rather than spin forever, give the
+  // player an honest way out after a reasonable wait.
+  useEffect(() => {
+    if (stage !== 'open' || owned) {
+      setWaitedTooLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setWaitedTooLong(true), STARTER_PACK_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [stage, owned]);
+
+  const retry = useCallback(() => {
+    setWaitedTooLong(false);
+    refetch();
+  }, [refetch]);
 
   const advanceCard = useCallback(() => {
     setRevealed((r) => {
@@ -126,6 +152,25 @@ export default function WelcomeScreen() {
     // The grant is server-side and already committed. If the collection
     // hasn't loaded yet, that's a loading state, not "nothing was granted".
     if (!owned) {
+      if (waitedTooLong) {
+        return (
+          <Shell>
+            <div style={{ font: '400 10px/1 var(--font-tele)', letterSpacing: '.24em', color: 'var(--neon-gold)' }}>
+              STILL ON THE WAY
+            </div>
+            <p style={{ font: '400 14px/1.6 var(--font-body)', color: 'var(--ink-60)', maxWidth: 300, margin: '18px 0 28px' }}>
+              Your starter pack hasn&rsquo;t arrived yet. It&rsquo;s already
+              been granted on our end — this is just taking longer than
+              usual to show up.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={retry} style={btnPrimary}>RETRY</button>
+              <Link href="/deck" style={btnGhost}>GO TO DECK</Link>
+            </div>
+          </Shell>
+        );
+      }
+
       return (
         <Shell>
           <Loading label="OPENING…" />
@@ -163,7 +208,7 @@ export default function WelcomeScreen() {
         >
           TAP FOR THE NEXT CARD
           <div style={{ font: '400 8px/1 var(--font-tele)', color: 'var(--ink-25)', marginTop: 8 }}>
-            CARD {Math.min(revealed + 1, cards.length)} OF {cards.length || 21}
+            CARD {Math.min(revealed + 1, cards.length)} OF {cards.length}
           </div>
         </div>
       </Shell>
@@ -189,7 +234,7 @@ export default function WelcomeScreen() {
         DROPS
       </div>
       <p style={{ font: '400 13px/1.6 var(--font-body)', color: 'var(--ink-60)', maxWidth: 300, margin: '0 0 28px' }}>
-        {cards.length || 21} cards are in your deck. Play one to start a
+        {cards.length} cards are in your deck. Play one to start a
         reign, or spend Drops on another pack.
       </p>
       <div style={{ display: 'flex', gap: 10 }}>
