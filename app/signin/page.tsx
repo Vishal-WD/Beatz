@@ -37,7 +37,19 @@ export default function SignInScreen() {
     setBusy(false);
     if (res.ok) {
       play('throne');
-      router.push('/deck');
+      /*
+        Branch on the profile's onboarded_at, not on which action (sign in
+        vs sign up) was taken -- a player who signs up, closes the app
+        mid-welcome and returns would sign IN and skip the welcome forever
+        if this branched on the action instead of the flag.
+
+        The profile fetch that follows signIn/signUp is async, so it may
+        not have landed in this render yet. When onboarded_at isn't known
+        at this instant, send them to /welcome anyway -- it re-checks and
+        forwards an already-onboarded player straight to /deck, so guessing
+        wrong costs one redirect rather than a lost welcome.
+      */
+      router.push(profile.onboarded_at == null ? '/welcome' : '/deck');
     } else {
       setMsg(res.message);
     }

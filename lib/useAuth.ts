@@ -24,6 +24,7 @@ export const GUEST_PROFILE: DbProfile = {
   tier: 'ROOKIE',
   season_badge: null,
   drops: 0,
+  onboarded_at: null,
   total_reigns_won: 0,
   peak_vibe: 0,
   challenger_wins: 0,

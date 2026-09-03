@@ -90,6 +90,7 @@ export interface DbProfile {
   tier: string;
   season_badge: string | null;
   drops: number;
+  onboarded_at: string | null;
   total_reigns_won: number;
   peak_vibe: number;
   challenger_wins: number;
@@ -160,6 +161,19 @@ export async function mintPeakMoment(reignId: string): Promise<string | null> {
     return null;
   }
   return (data as string) ?? null;
+}
+
+/** Records that this player has seen the welcome. */
+export async function markOnboarded(): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db
+    .from('profiles')
+    .update({ onboarded_at: new Date().toISOString() })
+    .eq('id', auth.user.id);
+  return !error;
 }
 
 /**
