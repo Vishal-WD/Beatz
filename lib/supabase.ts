@@ -18,6 +18,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ChartRow } from './domain/chart';
 import type { FeedSources } from './domain/activity';
+import type { PackTier } from './domain/packs';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -312,17 +313,20 @@ export interface PackPull {
  * The RPC's OUT columns are prefixed `out_` because a plain `rarity` collides
  * with `cards.rarity` inside the function's own pull query.
  */
-export async function openPack(): Promise<PackPull[] | { error: string }> {
+export async function openPack(tier: PackTier): Promise<PackPull[] | { error: string }> {
   const db = supabase();
   if (!db) return { error: 'No backend configured.' };
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return { error: 'Sign in to open packs.' };
 
-  const { data, error } = await db.rpc('open_pack', { p_user: auth.user.id });
+  const { data, error } = await db.rpc('open_pack', {
+    p_user: auth.user.id,
+    p_tier: tier,
+  });
   if (error) {
     return {
       error: error.message.includes('insufficient_drops')
-        ? 'Not enough Drops for a pack.'
+        ? 'Not enough Drops for that pack.'
         : 'Could not open the pack. Try again.',
     };
   }

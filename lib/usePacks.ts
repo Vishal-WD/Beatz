@@ -32,7 +32,7 @@ export function usePacks() {
     setState('opening');
     setError(null);
 
-    const res = await openPack();
+    const res = await openPack('night');
     if ('error' in res) {
       setError(res.error);
       setState('error');
