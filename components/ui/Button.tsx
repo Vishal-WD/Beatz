@@ -47,7 +47,7 @@ export function Button({
 
   const variantStyle =
     variant === 'primary'
-      ? { background: fill, color: '#0a0008', border: '1px solid transparent' }
+      ? { background: fill, color: 'var(--ink-on-neon)', border: '1px solid transparent' }
       : variant === 'danger'
         ? { background: 'transparent', color: 'var(--neon-gold)', border: 'var(--border-strong)' }
         : variant === 'ghost'

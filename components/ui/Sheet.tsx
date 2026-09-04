@@ -87,7 +87,7 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         position: 'fixed',
         inset: 0,
         zIndex: 60,
-        background: 'rgba(0,0,0,.66)',
+        background: 'var(--scrim-modal)',
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',

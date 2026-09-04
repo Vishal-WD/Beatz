@@ -44,7 +44,7 @@ export function Segmented<T extends string>({
               borderRadius: 'var(--radius-sm)',
               border: `1px solid ${on ? accent : 'var(--hairline)'}`,
               background: on ? accent : 'transparent',
-              color: on ? '#0a0812' : accent,
+              color: on ? 'var(--ink-on-neon)' : accent,
               font: "700 8px/1 var(--font-tele)",
               letterSpacing: '.14em',
               cursor: 'pointer',

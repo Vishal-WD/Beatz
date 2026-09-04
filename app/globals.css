@@ -35,6 +35,10 @@
      not the app's surface system -- the artwork it sits on is itself
      theme-invariant, so this is too. */
   --scrim: rgba(0, 0, 0, 0.45);
+  /* A modal backdrop has to do more work than a poster overlay: it must
+     make the sheet on top of it readable, not just tint an image. Kept
+     separate from --scrim so darkening one does not darken the other. */
+  --scrim-modal: rgba(0, 0, 0, 0.66);
 
   /* Fixed light text for sitting on --scrim over illustration. Pairs with
      --scrim the way --ink-on-neon pairs with the neon chips: the poster
@@ -148,11 +152,12 @@
   --gold-wash-border: rgba(196, 138, 0, 0.55);
   --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.22), rgba(76, 227, 255, 0.22));
 
-  /* --ink-on-neon, --scrim, --ink-fixed, --neon-rose, --art-slot and
-     --video-backdrop are deliberately absent here: every one of them sits
-     on (or is) a neon/bright/illustrated/fixed surface that does not
-     itself change with theme, so the value must not change either. Same
-     names, same values, both palettes. */
+  /* --ink-on-neon, --scrim, --scrim-modal, --ink-fixed, --neon-rose,
+     --art-slot and --video-backdrop are deliberately absent here: every one
+     of them sits on (or is) a neon/bright/illustrated/fixed surface that
+     does not itself change with theme, so the value must not change either.
+     --scrim-modal darkens whatever is behind a sheet, and that job is the
+     same in both palettes. Same names, same values, both palettes. */
 }
 
 * {
