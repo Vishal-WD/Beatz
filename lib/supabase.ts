@@ -73,7 +73,7 @@ export interface DbCard {
   /** Apple 30s preview. Present on chart-sourced cards; CORS-open. */
   preview_url: string | null;
   jamendo_track_id: string | null;
-  playback_mode: 'youtube_embed' | 'spotify_handoff' | 'jamendo_local';
+  playback_mode: 'youtube_embed' | 'apple_preview' | 'spotify_handoff' | 'jamendo_local';
   audio_analyzable: boolean;
   license_variant: string | null;
   attribution_text: string | null;

@@ -73,7 +73,8 @@ interface EnrichedCard {
   title: string;
   artists: { mbArtistId: string; name: string; role: 'primary'; joinPhrase: string | null }[];
   artworkUrl: string | null;
-  artworkSource: 'caa' | null;
+  artworkSource: 'caa' | 'itunes' | null;
+  previewUrl: string | null;
   deezerRank: number | null;
   artistReleaseCount: number;
   hype: number;
@@ -85,14 +86,36 @@ interface EnrichedCard {
   youtubeVideoId: string | null;
 }
 
-async function fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T | null> {
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers } });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
+/**
+ * Retries a throttled or flaky request instead of dropping the card.
+ *
+ * MusicBrainz rate-limits to ~1 req/s and answers 503 when it decides you
+ * were too quick, which this treated exactly like "no such recording": the
+ * card was reported as a miss and silently left out of the pool. Both cards
+ * missing from a recent run resolve fine on a direct request, so the pool
+ * was short for no reason other than impatience.
+ *
+ * A 404 is a real answer and is NOT retried.
+ */
+async function fetchJson<T>(
+  url: string,
+  headers: Record<string, string> = {},
+  attempts = 3,
+): Promise<T | null> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA, Accept: 'application/json', ...headers },
+      });
+      if (res.ok) return (await res.json()) as T;
+      if (res.status === 404) return null;
+      // 503/429/5xx: back off and try again.
+      if (i < attempts - 1) await sleep(MB_DELAY_MS * (i + 2));
+    } catch {
+      if (i < attempts - 1) await sleep(MB_DELAY_MS * (i + 2));
+    }
   }
+  return null;
 }
 
 /** Stage 1 — MusicBrainz. CC0 core tables only (no annotations: those are CC BY-NC-SA). */
@@ -121,11 +144,13 @@ async function fetchDeezerRank(title: string, artist: string): Promise<number | 
   const hit = data?.data?.[0];
   if (!hit) return null;
 
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (norm(hit.title) !== norm(title) && !norm(hit.title).includes(norm(title))) return null;
 
   return typeof hit.rank === 'number' ? hit.rank : null;
 }
+
+/** Compare titles ignoring punctuation, case and spacing. */
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /** Stage 4 — artwork. CAA first: real covers, and the safest source (§2.2). */
 async function fetchCoverArt(releaseGroupId: string | null): Promise<string | null> {
@@ -139,6 +164,47 @@ async function fetchCoverArt(releaseGroupId: string | null): Promise<string | nu
   }
 }
 
+/**
+ * Stage 4b — iTunes, for the 30s preview and an artwork fallback.
+ *
+ * Two gaps this closes. The generator never fetched a preview at all, so
+ * push-to-supabase.ts had none to send and every pushed card arrived
+ * unplayable-by-preview while still claiming 'youtube_embed' -- a mode only
+ * the ten hand-curated cards (the ones with a video id) could actually
+ * perform. And Cover Art Archive genuinely has no cover for some release
+ * groups, which left "Why This Kolaveri Di?" with no artwork at all.
+ *
+ * iTunes is an approved source for both (docs/LICENSING_RIGHTS.md §2.5):
+ * the preview URL points at Apple's own stream and nothing is downloaded or
+ * stored here.
+ */
+async function fetchItunes(
+  title: string,
+  artist: string,
+): Promise<{ previewUrl: string | null; artworkUrl: string | null }> {
+  const term = encodeURIComponent(`${title} ${artist}`);
+  const data = await fetchJson<any>(
+    `https://itunes.apple.com/search?term=${term}&entity=song&limit=5`,
+  );
+
+  const results: any[] = data?.results ?? [];
+  if (results.length === 0) return { previewUrl: null, artworkUrl: null };
+
+  // Prefer an exact-ish title match over the first hit: a search for a film
+  // song returns remixes and covers, and those are different recordings.
+  const hit =
+    results.find((r) => norm(r.trackName ?? '') === norm(title)) ??
+    results.find((r) => norm(r.trackName ?? '').includes(norm(title))) ??
+    results[0];
+
+  return {
+    previewUrl: hit.previewUrl ?? null,
+    artworkUrl: hit.artworkUrl100
+      ? String(hit.artworkUrl100).replace('100x100', '600x600')
+      : null,
+  };
+}
+
 async function artistReleaseCount(mbArtistId: string): Promise<number> {
   if (!mbArtistId) return 0;
   const data = await fetchJson<any>(
@@ -147,14 +213,31 @@ async function artistReleaseCount(mbArtistId: string): Promise<number> {
   return data?.['release-group-count'] ?? 0;
 }
 
+/**
+ * Bump when a new field is added to EnrichedCard.
+ *
+ * The cache is keyed by MBID alone, so a record written before a field
+ * existed was served back for ever without it -- adding the iTunes preview
+ * did nothing on any already-cached card, and the run reported success while
+ * emitting `previewUrl: undefined`. Stamping the shape means a stale entry is
+ * refetched instead of silently under-filling the card.
+ */
+const CACHE_VERSION = 2;
+
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const path = join(CACHE_DIR, `${key}.json`);
   if (existsSync(path)) {
-    return JSON.parse(await readFile(path, 'utf8')) as T;
+    const raw = JSON.parse(await readFile(path, 'utf8')) as
+      { __v?: number; value?: T } | T;
+    const entry = raw as { __v?: number; value?: T };
+    if (entry && entry.__v === CACHE_VERSION && entry.value !== undefined) {
+      return entry.value;
+    }
+    // Older shape, or none at all: fall through and refetch.
   }
   const value = await fn();
   await mkdir(CACHE_DIR, { recursive: true });
-  await writeFile(path, JSON.stringify(value, null, 2));
+  await writeFile(path, JSON.stringify({ __v: CACHE_VERSION, value }, null, 2));
   return value;
 }
 
@@ -168,11 +251,18 @@ async function enrich(row: SeedRow): Promise<EnrichedCard | null> {
     }
 
     const primaryArtist = mb.artists[0]?.name ?? '';
-    const [rank, artwork, releaseCount] = await Promise.all([
+    const [rank, caaArtwork, releaseCount, itunes] = await Promise.all([
       fetchDeezerRank(mb.title, primaryArtist),
       fetchCoverArt(mb.releaseGroupId),
       artistReleaseCount(mb.artists[0]?.mbArtistId ?? ''),
+      fetchItunes(mb.title, primaryArtist),
     ]);
+
+    // CAA first -- it is the safest source (§2.2) -- but it genuinely has no
+    // cover for some release groups, and a card with no artwork is not
+    // shippable. iTunes is the approved fallback.
+    const artwork = caaArtwork ?? itunes.artworkUrl;
+    const artworkSource = caaArtwork ? ('caa' as const) : itunes.artworkUrl ? ('itunes' as const) : null;
     await sleep(MB_DELAY_MS);
 
     const snap: PopularitySnapshot = {
@@ -207,7 +297,8 @@ async function enrich(row: SeedRow): Promise<EnrichedCard | null> {
       title: mb.title,
       artists: mb.artists,
       artworkUrl: artwork,
-      artworkSource: artwork ? ('caa' as const) : null,
+      artworkSource,
+      previewUrl: itunes.previewUrl,
       deezerRank: rank,
       artistReleaseCount: releaseCount,
       hype: stats.hype,
@@ -247,6 +338,7 @@ function emit(cards: EnrichedCard[]): string {
     spotifyTrackId: null,
     deezerTrackId: null,
     youtubeVideoId: ${JSON.stringify(c.youtubeVideoId)},
+    previewUrl: ${JSON.stringify(c.previewUrl)},
     jamendoTrackId: null,
     artists: ${JSON.stringify(c.artists)},
     isCollab: ${isCollab},
@@ -256,7 +348,10 @@ function emit(cards: EnrichedCard[]): string {
     serialNumber: ${i + 1},
     supplyTotal: ${supplyTotal(c.rarity, 0)},
     supplyRemaining: ${supplyTotal(c.rarity, 0)},
-    playbackMode: 'youtube_embed',
+    playbackMode: ${c.youtubeVideoId ? "'youtube_embed'" : "'apple_preview'"},
+    // ^ derived, never assumed: a card that declares the embed without a
+    //   video id cannot play at all. 50 of 60 rows used to claim exactly
+    //   that, because 'youtube_embed' was the database column default.
     audioAnalyzable: false,
     licenseVariant: null,
     attributionText: null,

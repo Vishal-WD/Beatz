@@ -67,6 +67,10 @@ async function main() {
     supply_total: c.supplyTotal,
     supply_remaining: c.supplyRemaining,
     youtube_video_id: c.youtubeVideoId,
+    // The generator fetches this from iTunes and it was never being sent, so
+    // every pushed card arrived with no preview while still declaring a
+    // playback mode most of them could not perform.
+    preview_url: c.previewUrl ?? null,
     jamendo_track_id: c.jamendoTrackId,
     playback_mode: c.playbackMode,
     audio_analyzable: c.audioAnalyzable,

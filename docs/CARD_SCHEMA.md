@@ -76,7 +76,7 @@ interface SongCard extends CardDisplayBase {
   supplyRemaining: number;
 
   // --- Playback licensing gate ---
-  playbackMode: 'youtube_embed' | 'spotify_handoff' | 'jamendo_local';
+  playbackMode: 'youtube_embed' | 'apple_preview' | 'spotify_handoff' | 'jamendo_local';
   audioAnalyzable: boolean;       // TRUE ONLY for jamendo_local
   licenseVariant: string | null;  // e.g. 'CC BY 4.0' — REQUIRED if jamendo
   attributionText: string | null; // rendered verbatim in card detail

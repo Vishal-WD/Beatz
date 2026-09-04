@@ -193,8 +193,27 @@ function cardPoolChecks(pool: PoolCard[]) {
   check('no card stores a non-Jamendo audio URL (DO NOT #1)',
     pool.every((c) => !c.audioAnalyzable || c.playbackMode === 'jamendo_local'));
 
-  check('youtube_embed cards carry a video id, or fall back cleanly',
-    pool.every((c) => c.playbackMode !== 'youtube_embed' || c.youtubeVideoId !== undefined));
+  /*
+    This used to test `!== undefined`, which is true for null -- so all 60
+    cards passed while 50 of them declared 'youtube_embed' with no video id
+    at all. A card that names a playback path it cannot perform is not
+    playable, so the check now demands the id actually be there.
+  */
+  check('every card can perform the playback mode it declares',
+    pool.every((c) =>
+      c.playbackMode === 'youtube_embed'
+        ? Boolean(c.youtubeVideoId)
+        : c.playbackMode === 'apple_preview'
+          ? Boolean(c.previewUrl)
+          : true),
+    pool.filter((c) =>
+      (c.playbackMode === 'youtube_embed' && !c.youtubeVideoId) ||
+      (c.playbackMode === 'apple_preview' && !c.previewUrl))
+      .map((c) => `${c.title} (${c.playbackMode})`).join(', '));
+
+  check('every card has artwork',
+    pool.every((c) => Boolean(c.artworkUrl)),
+    pool.filter((c) => !c.artworkUrl).map((c) => c.title).join(', '));
 
   check('artwork comes only from approved sources',
     pool.every((c) => c.artworkSource === null

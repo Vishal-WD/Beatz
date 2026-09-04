@@ -6,7 +6,17 @@
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type CardKind = 'song' | 'profile' | 'guest';
 export type ArtistRole = 'primary' | 'featured' | 'remixer' | 'producer';
-export type PlaybackMode = 'youtube_embed' | 'spotify_handoff' | 'jamendo_local';
+/**
+ * How a card makes a sound.
+ *
+ * 'apple_preview' is the 30s stream Apple serves CORS-open (usePreviewAudio)
+ * and is what most of the chart-sourced pool uses; 'youtube_embed' is the
+ * full track and needs a video id. The two are not interchangeable: a card
+ * declaring the embed without a youtubeVideoId cannot play at all, which is
+ * what 50 of 60 rows used to claim because 'youtube_embed' was the column
+ * default and nothing ever set it deliberately.
+ */
+export type PlaybackMode = 'youtube_embed' | 'apple_preview' | 'spotify_handoff' | 'jamendo_local';
 export type ArtworkSource = 'caa' | 'spotify' | 'itunes' | 'os_sync' | null;
 
 export interface CardDisplayBase {
