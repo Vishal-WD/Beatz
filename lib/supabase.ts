@@ -111,6 +111,12 @@ export interface DbRoom {
   format: 'concert' | 'fest' | 'clubbing' | 'night_party' | 'disco' | 'private_party';
   /** Who may enter. Independent of `mode`, which is what may be played. */
   visibility: 'open' | 'guest_list';
+  /**
+   * Which mic mode a Concert or Fest runs. NULL for every other format —
+   * they have no mic concept, and a default would make "no mic" and
+   * "chose solo" indistinguishable (lib/domain/mic.ts).
+   */
+  mic_mode: 'solo' | 'vote_song' | 'setlist' | null;
 }
 
 export interface DbEvent {
