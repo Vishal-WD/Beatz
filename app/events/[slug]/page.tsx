@@ -20,17 +20,29 @@
 import { createClient } from '@supabase/supabase-js';
 import { EventDetailView } from './EventDetailView';
 
+/**
+ * What to export when there are no events at all.
+ *
+ * `output: export` REFUSES an empty generateStaticParams -- the build dies
+ * with 'Page is missing generateStaticParams()' -- so a database with zero
+ * events (a fresh wipe, or a build with no credentials) could not produce an
+ * APK at all. One placeholder route satisfies the requirement.
+ *
+ * It is a real route that renders the ordinary "event not found" state, not
+ * a fake event: EventDetailView resolves slugs at runtime through
+ * useEventBySlug, so nothing here pretends an event exists.
+ */
+const NONE = [{ slug: 'none' }];
+
 export async function generateStaticParams() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // A build without credentials still has to produce a working bundle —
-  // it just cannot know the slugs. Returning none exports no detail pages
-  // rather than failing the build, and the runtime still resolves an event
-  // by slug through useEventBySlug once it has a session.
+  // A build without credentials still has to produce a working bundle — it
+  // just cannot know the slugs. See NONE below for why this is not [].
   if (!url || !key) {
     console.warn('[events/[slug]] no Supabase credentials at build; exporting no event pages');
-    return [];
+    return NONE;
   }
 
   const { data, error } = await createClient(url, key)
@@ -42,7 +54,8 @@ export async function generateStaticParams() {
     throw new Error(`generateStaticParams could not list event slugs: ${error.message}`);
   }
 
-  return (data ?? []).map((e) => ({ slug: e.slug as string }));
+  const slugs = (data ?? []).map((e) => ({ slug: e.slug as string }));
+  return slugs.length > 0 ? slugs : NONE;
 }
 
 export default async function EventDetailPage({

@@ -24,6 +24,10 @@ import { useHaptics } from '@/lib/useHaptics';
 import { usePacks } from '@/lib/usePacks';
 import { PACKS, type PackTier } from '@/lib/domain/packs';
 
+/* Stage names, so the tap machine below reads as a sequence rather than
+   as four bare integers. */
+const SEALED = 0, TEARING = 1, FLIPPING = 2, PULLED = 3;
+
 const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
 const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP FOR THE NEXT CARD'];
 
@@ -67,7 +71,20 @@ export default function PacksScreen() {
     haptic('medium');
     setRevealed(0);
     void pack.open(tier);
-    setStage(1);
+
+    /*
+      The tear is a CSS clip-path transition on SealedPack, driven by
+      `torn={stage >= 1}`. Setting stage to 1 in the same commit that first
+      mounts the sealed pack gave the browser no un-torn frame to animate
+      FROM, so the pack appeared already torn and the best moment in the app
+      was a jump cut.
+
+      Two frames of delay lets the sealed state paint first, so the
+      clip-path actually animates. requestAnimationFrame rather than a
+      timeout because it is tied to real paints, not a guessed millisecond.
+    */
+    setStage(SEALED);
+    requestAnimationFrame(() => requestAnimationFrame(() => setStage(TEARING)));
   }, [play, haptic, pack]);
 
   const advance = useCallback(() => {

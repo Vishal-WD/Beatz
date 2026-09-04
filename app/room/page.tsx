@@ -19,7 +19,7 @@ import { useCards } from '@/lib/useCards';
 const RING_CIRCUMFERENCE = 1131; // 2πr, r=180
 
 /** The room this shared display is showing. */
-const ROOM_SLUG = 'basement-4am';
+const ROOM_SLUG = 'last-train-disco';
 
 export default function ThroneRoom() {
   const { cards } = useCards();

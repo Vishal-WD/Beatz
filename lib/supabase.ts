@@ -885,3 +885,81 @@ export function dbCardToSongCard(c: DbCard) {
     licenseUrl: c.license_url,
   };
 }
+
+/**
+ * Creates a room and returns its slug.
+ *
+ * Nothing in the app could make a room: every player was dropped into the
+ * single hardcoded `basement-4am` slug, so "create a room" was not a
+ * feature you could reach, and two people could never be in different
+ * rooms. The `rooms_create` RLS policy already allowed this; only the
+ * client half was missing.
+ *
+ * The caller passes a format. Everything derived from it -- the control
+ * model, and the default door -- comes from lib/domain/formats.ts rather
+ * than being re-decided here, so a room cannot be created that contradicts
+ * CLAUDE.md §1.1. `visibility` and `mode` stay INDEPENDENT axes (§1.1):
+ * visibility is who may enter, mode is what may be played.
+ */
+export async function createRoom(args: {
+  name: string;
+  format: DbRoom['format'];
+  visibility: DbRoom['visibility'];
+  mode: DbRoom['mode'];
+  micMode?: string | null;
+}): Promise<{ slug: string } | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'Not connected.' };
+
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { error: 'Sign in to open a room.' };
+
+  const name = args.name.trim();
+  if (!name) return { error: 'Give the room a name.' };
+
+  /*
+    A slug has to be unique and URL-safe. Deriving it from the name keeps
+    it readable; the short suffix keeps two "Friday Night"s from colliding
+    without a round trip to check.
+  */
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32);
+  const slug = `${base || 'room'}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const { error } = await db.from('rooms').insert({
+    slug,
+    name,
+    format: args.format,
+    visibility: args.visibility,
+    mode: args.mode,
+    host_id: auth.user.id,
+    // Only the mic formats carry a mic mode; anything else must stay null
+    // or the room claims a mode it never uses.
+    mic_mode: args.micMode ?? null,
+    vibe: 50,
+    is_open: true,
+    solo_practice: false,
+  });
+
+  if (error) {
+    console.warn('[supabase] createRoom:', error.message);
+    return { error: 'Could not open the room.' };
+  }
+  return { slug };
+}
+
+/** Rooms you can walk into: open, and still accepting people. */
+export async function fetchOpenRooms(): Promise<DbRoom[]> {
+  const db = supabase();
+  if (!db) return [];
+  const { data, error } = await db
+    .from('rooms')
+    .select('*')
+    .eq('is_open', true)
+    .order('updated_at', { ascending: false })
+    .limit(40);
+  if (error) {
+    console.warn('[supabase] fetchOpenRooms:', error.message);
+    return [];
+  }
+  return (data ?? []) as DbRoom[];
+}

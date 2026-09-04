@@ -9,6 +9,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
+import { RoomPicker } from '@/components/RoomPicker';
 import { NowPlaying } from '@/components/NowPlaying';
 import { VibeMeter } from '@/components/VibeMeter';
 import { PerformerDisc } from '@/components/PerformerDisc';
@@ -28,7 +29,17 @@ import { canPlayCard, type PlayRefusal } from '@/lib/domain/play-rules';
 import { usesMic } from '@/lib/domain/mic';
 import { MicPanel } from '@/components/MicPanel';
 
-const ROOM_SLUG = 'basement-4am';
+/* The room a first-time player lands in. Once they create or join another,
+   the choice is remembered per device (see roomSlug below).
+
+   Deliberately an OPEN, contested Disco: it is the format whose rules a new
+   player can act on immediately (anyone may play, dethroning is on), and an
+   open door means no guest list turns them away on first launch. */
+const ROOM_SLUG = 'last-train-disco';
+
+/* How many cards the fan can show legibly at phone width. The collection is
+   paged at this size, never truncated to it. */
+const HAND_SIZE = 5;
 
 /** Player-facing sentence for each refusal `canPlayCard` can return. */
 const REFUSAL_COPY: Record<PlayRefusal, string> = {
@@ -59,13 +70,34 @@ export default function DeckScreen() {
     label it as one rather than implying the guest owns these cards.
   */
   const pool = hasCollection ? owned : cards;
-  const hand5 = useMemo(() => {
-    // Best of each tier, so the hype/stamina trade-off stays visible.
+
+  /*
+    The whole collection, best first -- NOT a fixed five.
+
+    This used to end in .slice(0, 5), so a player holding 21 starter cards
+    could reach exactly five of them, and once one was on the deck slot the
+    hand showed four. Cards pulled from a pack were unreachable, which made
+    the shop pointless: you could buy cards you could never play.
+
+    The fan can only show a handful legibly at phone width, so the hand is
+    PAGED rather than truncated. Every card stays reachable; only HAND_SIZE
+    of them are on screen at once.
+  */
+  const sorted = useMemo(() => {
     const rank = { legendary: 0, epic: 1, rare: 2, common: 3 } as const;
-    return [...pool]
-      .sort((a, b) => rank[a.rarity] - rank[b.rarity] || b.hype - a.hype)
-      .slice(0, 5);
+    return [...pool].sort((a, b) => rank[a.rarity] - rank[b.rarity] || b.hype - a.hype);
   }, [pool]);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [handPage, setHandPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / HAND_SIZE));
+  // A collection that shrinks (or a signed-out swap) must not strand the
+  // view on a page that no longer exists.
+  const page = Math.min(handPage, pageCount - 1);
+  const hand5 = useMemo(
+    () => sorted.slice(page * HAND_SIZE, page * HAND_SIZE + HAND_SIZE),
+    [sorted, page],
+  );
 
   /*
     The room's format/mode/host/id come from the `rooms` table, not the live
@@ -74,20 +106,44 @@ export default function DeckScreen() {
     use, so controlModelFor() and canPlayCard() see the real format instead
     of always assuming a contested Disco.
   */
+  /*
+    Which room this screen is showing.
+
+    This was pinned to ROOM_SLUG, so every player in the world was dropped
+    into `basement-4am` on open -- you could not make a room, could not
+    choose one, and two people could never be anywhere else. The slug is now
+    state, remembered per device so returning to the tab does not silently
+    move you.
+  */
+  const [roomSlug, setRoomSlug] = useState<string>(ROOM_SLUG);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('beatz:room');
+      if (saved) setRoomSlug(saved);
+    } catch { /* private mode: fall back to the default room */ }
+  }, []);
+
+  const enterRoom = useCallback((slug: string) => {
+    setRoomSlug(slug);
+    setDeckId(null);
+    try { localStorage.setItem('beatz:room', slug); } catch { /* not fatal */ }
+  }, []);
+
   const [dbRoom, setDbRoom] = useState<DbRoom | null>(null);
   useEffect(() => {
     const db = supabase();
     if (!db) return;
     let cancelled = false;
-    db.from('rooms').select('*').eq('slug', ROOM_SLUG).single().then(({ data }) => {
+    setDbRoom(null); // never show the previous room's shape while switching
+    db.from('rooms').select('*').eq('slug', roomSlug).single().then(({ data }) => {
       if (!cancelled && data) setDbRoom(data as DbRoom);
     });
-    const unsubscribe = subscribeToRoom(ROOM_SLUG, (r) => !cancelled && setDbRoom(r));
+    const unsubscribe = subscribeToRoom(roomSlug, (r) => !cancelled && setDbRoom(r));
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, []);
+  }, [roomSlug]);
 
   // Connects to the hosted server when one is configured; otherwise falls
   // back to local simulation and SAYS so via the badge below.
@@ -98,7 +154,7 @@ export default function DeckScreen() {
   // has loaded, roomUuid is null and useRoom leaves the challenger line
   // empty rather than querying with the wrong identifier.
   const { mode, room, line, setHolding: pushHold } = useRoom({
-    roomId: ROOM_SLUG,
+    roomId: roomSlug,
     roomUuid: dbRoom?.id ?? null,
     playerId: profile.id,
     displayName: profile.display_name,
@@ -359,6 +415,32 @@ export default function DeckScreen() {
           <VibeMeter vibe={vibe} onCritical={dethroneable ? onCritical : undefined} dethroneable={dethroneable} />
         </div>
 
+        {/*
+          Which room you are in, and the way out of it. Without this the
+          screen was a dead end: one hardcoded room, no way to open another
+          and no way to see that others existed.
+        */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: -4 }}>
+          <span style={{
+            font: '400 15px/1.05 var(--font-title)', textTransform: 'uppercase',
+            color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {dbRoom?.name ?? 'LOADING…'}
+          </span>
+          <button
+            onClick={() => { setPickerOpen(true); play('tap'); haptic('light'); }}
+            style={{
+              flexShrink: 0,
+              font: '700 8px/1 var(--font-tele)', letterSpacing: '.14em',
+              padding: '7px 11px', borderRadius: 'var(--radius-sm)',
+              background: 'var(--surface-inset)', border: 'var(--border-hair)',
+              color: 'var(--ink-60)',
+            }}
+          >
+            ROOMS
+          </button>
+        </div>
+
         {/* Never silently simulate a multiplayer game (CLAUDE.md §6). */}
         <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:-8 }}>
           <span style={{ width:5, height:5, borderRadius:3, background: MODE_LABEL[mode].color }} />
@@ -493,6 +575,44 @@ export default function DeckScreen() {
               </div>
             )}
           </div>
+          {/*
+            Only shown when the collection outgrows one fan. A player with a
+            starter pack has 21 cards and would otherwise reach five.
+          */}
+          {pageCount > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 4 }}>
+              <button
+                onClick={() => { setHandPage((p) => Math.max(0, p - 1)); play('tap'); haptic('light'); }}
+                disabled={page === 0}
+                aria-label="Previous cards"
+                style={{
+                  font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
+                  padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface-inset)', border: 'var(--border-hair)',
+                  color: 'var(--ink-60)', opacity: page === 0 ? 0.35 : 1,
+                }}
+              >
+                ‹ PREV
+              </button>
+              <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)' }}>
+                {page * HAND_SIZE + 1}–{Math.min((page + 1) * HAND_SIZE, sorted.length)} OF {sorted.length}
+              </span>
+              <button
+                onClick={() => { setHandPage((p) => Math.min(pageCount - 1, p + 1)); play('tap'); haptic('light'); }}
+                disabled={page >= pageCount - 1}
+                aria-label="More cards"
+                style={{
+                  font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
+                  padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface-inset)', border: 'var(--border-hair)',
+                  color: 'var(--ink-60)', opacity: page >= pageCount - 1 ? 0.35 : 1,
+                }}
+              >
+                NEXT ›
+              </button>
+            </div>
+          )}
+
           <div style={{ position: 'relative', height: 'clamp(120px, 18dvh, 150px)', display: 'flex', justifyContent: 'center' }}>
             {hand.map((c, i) => {
               const mid = (hand.length - 1) / 2;
@@ -520,6 +640,14 @@ export default function DeckScreen() {
           </div>
         </div>
       </div>
+
+      <RoomPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        currentSlug={roomSlug}
+        onEnter={enterRoom}
+        isSignedIn={isSignedIn}
+      />
     </PhoneShell>
   );
 }
