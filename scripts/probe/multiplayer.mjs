@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
-const URL = 'http://localhost:3901';
-const ROOM = 'probe-room';
+const URL = 'https://beatz-realtime-e2gj.onrender.com';
+const ROOM = 'basement-4am';
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 const mk = (name) => new Promise((res, rej) => {
