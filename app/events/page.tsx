@@ -12,9 +12,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { PhoneShell } from '@/components/PhoneChrome';
+import { EmptyState } from '@/components/ui';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
-import { relativeTime } from '@/lib/social-data';
+import { relativeTime } from '@/lib/domain/when';
 import { useLiveEvents } from '@/lib/useLiveEvents';
 import { EVENT_KIND_LABEL } from '@/types/social';
 import type { RsvpState } from '@/types/social';
@@ -70,6 +71,29 @@ export default function EventsScreen() {
             );
           })}
         </div>
+
+        {/*
+          These two states used to be unreachable: the hook seeded itself
+          from a fixture, so the screen always had five invented nights to
+          draw. With the fixture gone, an empty table has to say so rather
+          than render a heading over blank space.
+        */}
+        {source === 'loading' && (
+          <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.16em', color: 'var(--ink-25)' }}>
+            LOADING…
+          </div>
+        )}
+
+        {source !== 'loading' && shown.length === 0 && (
+          <EmptyState
+            title={events.length === 0 ? 'NOTHING SCHEDULED YET' : 'NOTHING MATCHES THAT FILTER'}
+            hint={
+              events.length === 0
+                ? 'Nights appear here once someone schedules one.'
+                : 'Try ALL to see everything on tonight.'
+            }
+          />
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {shown.map((e) => {

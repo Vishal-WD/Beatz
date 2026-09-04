@@ -13,7 +13,7 @@ import { PhoneShell } from '@/components/PhoneChrome';
 import { EmptyState } from '@/components/ui';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
-import { timeAgo } from '@/lib/social-data';
+import { timeAgo } from '@/lib/domain/when';
 import { useLiveProfiles } from '@/lib/useLiveEvents';
 import { useActivityFeed } from '@/lib/useActivityFeed';
 import { avatarFor } from '@/lib/rarity';

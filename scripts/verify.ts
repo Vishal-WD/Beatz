@@ -16,7 +16,6 @@ import { RARITY } from '../lib/rarity';
 import { GENERATED_CARDS } from '../lib/generated-cards';
 import { buildChart } from '../lib/domain/chart';
 import { ALL_CARDS, STARTING_HAND } from '../lib/seed-data';
-import { EVENTS } from '../lib/social-data';
 import type { Rarity } from '../types/cards';
 
 let failures = 0;
@@ -185,21 +184,72 @@ check('world chart ranks by descending scarcity',
 // ---------------------------------------------------------------------------
 section('SOCIAL LAYER GUARD RAILS (CLAUDE.md §1.1)');
 
-check('every event resolves into a room',
-  EVENTS.every((e) => Boolean(e.roomId)));
+/*
+  These checked the EVENTS fixture, which could not fail: the array was
+  hand-written to satisfy them. The guard rail is about real scheduled
+  nights — "every scheduled night resolves into a room" is only meaningful
+  against the rows the app actually reads — so they now query the database.
 
-check('event capacity is never negative or below attendance',
-  EVENTS.every((e) => e.capacity === null || e.capacity >= 0));
+  Skipped rather than failed without credentials, because this script also
+  runs in places that have no .env.local and the pure-function checks above
+  are still worth running there.
+*/
+async function socialGuardRails() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    console.log('  – skipped (no Supabase credentials in env)');
+    return;
+  }
 
-check('Event Rooms exist and are distinguishable from Casual',
-  EVENTS.some((e) => e.roomMode === 'event') && EVENTS.some((e) => e.roomMode === 'casual'));
+  const res = await fetch(
+    `${url}/rest/v1/events?select=room_id,capacity,rooms(mode)`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+  );
+  if (!res.ok) {
+    check('events are readable', false, `HTTP ${res.status}`);
+    return;
+  }
+
+  const evs = (await res.json()) as {
+    room_id: string | null;
+    capacity: number | null;
+    rooms: { mode: string } | { mode: string }[] | null;
+  }[];
+
+  if (evs.length === 0) {
+    console.log('  – skipped (no events scheduled)');
+    return;
+  }
+
+  const modeOf = (e: (typeof evs)[number]) =>
+    (Array.isArray(e.rooms) ? e.rooms[0] : e.rooms)?.mode;
+
+  check('every event resolves into a room',
+    evs.every((e) => Boolean(e.room_id)));
+
+  check('event capacity is never negative',
+    evs.every((e) => e.capacity === null || e.capacity >= 0));
+
+  check('every event names a room mode (casual or event)',
+    evs.every((e) => modeOf(e) === 'casual' || modeOf(e) === 'event'));
+}
 
 // ---------------------------------------------------------------------------
-console.log(`\n${'─'.repeat(52)}`);
-if (failures === 0) {
-  console.log(`ALL ${checks} CHECKS PASSED`);
-  process.exit(0);
-} else {
-  console.log(`${failures} of ${checks} CHECKS FAILED`);
-  process.exit(1);
+// The social checks hit the network, so the summary has to wait for them. A
+// plain top-level await is not available under this script's cjs transform,
+// hence the explicit main().
+async function main() {
+  await socialGuardRails();
+
+  console.log(`\n${'─'.repeat(52)}`);
+  if (failures === 0) {
+    console.log(`ALL ${checks} CHECKS PASSED`);
+    process.exit(0);
+  } else {
+    console.log(`${failures} of ${checks} CHECKS FAILED`);
+    process.exit(1);
+  }
 }
+
+void main();

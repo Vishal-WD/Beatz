@@ -8,7 +8,7 @@
 
 import Link from 'next/link';
 import { PhoneShell } from '@/components/PhoneChrome';
-import { relativeTime } from '@/lib/social-data';
+import { relativeTime } from '@/lib/domain/when';
 import { useEventBySlug, useLiveEvents } from '@/lib/useLiveEvents';
 import { EVENT_KIND_LABEL } from '@/types/social';
 import type { RsvpState } from '@/types/social';

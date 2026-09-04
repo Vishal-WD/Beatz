@@ -1,7 +1,9 @@
 'use client';
 
 /**
- * Events, RSVPs and following from Supabase, falling back to seeded data.
+ * Events, RSVPs and following from Supabase. An empty result stays empty:
+ * there is no fixture fallback, because invented nights shown as real are
+ * the exact problem this redesign removed.
  *
  * RSVP writes go through RLS: `rsvps_insert` requires auth.uid() = player_id,
  * so an anonymous viewer can browse but not commit. That is enforced by the
@@ -10,11 +12,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PartyEvent, SocialProfile, RsvpState } from '@/types/social';
-import { EVENTS as SEEDED_EVENTS, SUGGESTED_PROFILES as SEEDED_PROFILES } from './social-data';
 import { supabase, isSupabaseConfigured, type DbEvent } from './supabase';
 import { avatarFor } from './rarity';
 
-export type LiveSource = 'loading' | 'live' | 'seeded';
+/**
+ * Where the list came from.
+ *
+ * There is deliberately no 'seeded' member. Both hooks used to fall back to
+ * the EVENTS / SUGGESTED_PROFILES fixtures in lib/social-data.ts whenever the
+ * query returned nothing, which meant a fresh install showed five invented
+ * nights and a handful of invented people as though they were real — the
+ * only signal being the ABSENCE of a "LIVE DATA" tag, which reads as
+ * nothing at all. 'empty' says the truthful thing instead, and the screens
+ * render their empty state.
+ */
+export type LiveSource = 'loading' | 'live' | 'empty';
 
 interface HostRow {
   id: string;
@@ -65,9 +77,9 @@ function toPartyEvent(
 }
 
 export function useLiveEvents() {
-  const [events, setEvents] = useState<PartyEvent[]>(SEEDED_EVENTS);
+  const [events, setEvents] = useState<PartyEvent[]>([]);
   const [source, setSource] = useState<LiveSource>(
-    isSupabaseConfigured ? 'loading' : 'seeded',
+    isSupabaseConfigured ? 'loading' : 'empty',
   );
 
   const load = useCallback(async () => {
@@ -83,7 +95,7 @@ export function useLiveEvents() {
       ]);
 
     if (!evs || evs.length === 0) {
-      setSource('seeded');
+      setSource('empty');
       return;
     }
 
@@ -119,7 +131,7 @@ export function useLiveEvents() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    void load().catch(() => setSource('seeded'));
+    void load().catch(() => setSource('empty'));
   }, [load]);
 
   /** Optimistic: the UI must not wait a round-trip to acknowledge a tap. */
@@ -176,9 +188,9 @@ export function useEventBySlug(slug: string) {
 }
 
 export function useLiveProfiles() {
-  const [profiles, setProfiles] = useState<SocialProfile[]>(SEEDED_PROFILES);
+  const [profiles, setProfiles] = useState<SocialProfile[]>([]);
   const [source, setSource] = useState<LiveSource>(
-    isSupabaseConfigured ? 'loading' : 'seeded',
+    isSupabaseConfigured ? 'loading' : 'empty',
   );
 
   useEffect(() => {
@@ -193,7 +205,7 @@ export function useLiveProfiles() {
         db.from('follows').select('follower_id,followee_id'),
       ]);
       if (cancelled || !rows || rows.length === 0) {
-        if (!cancelled) setSource('seeded');
+        if (!cancelled) setSource('empty');
         return;
       }
 
@@ -230,7 +242,7 @@ export function useLiveProfiles() {
       );
       setSource('live');
     })().catch(() => {
-      if (!cancelled) setSource('seeded');
+      if (!cancelled) setSource('empty');
     });
 
     return () => {

@@ -20,7 +20,7 @@ import { PhoneShell } from '@/components/PhoneChrome';
 import { EmptyState } from '@/components/ui';
 import { collageFor, type FeedTile } from '@/lib/domain/collage';
 import { FORMATS, type FormatId } from '@/lib/domain/formats';
-import { relativeTime } from '@/lib/social-data';
+import { relativeTime } from '@/lib/domain/when';
 import { useFeed } from '@/lib/useFeed';
 
 const formatLabel = (f: string | null): string =>
