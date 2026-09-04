@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  usesMic, micModesFor, winningNomination, stepInPasses,
+  usesMic, micModesFor, winningNomination, stepInPasses, stepInThreshold,
   type Nomination, type MicPerson,
 } from './mic';
 
@@ -103,5 +103,33 @@ describe('stepInPasses', () => {
   it('cannot pass when the holder is the only mic person', () => {
     expect(stepInPasses([], people('holder'), 'holder')).toBe(false);
     expect(stepInPasses(['holder'], people('holder'), 'holder')).toBe(false);
+  });
+});
+
+describe('stepInThreshold', () => {
+  /*
+    The panel shows "2 OF 3 NEEDED" so a request in progress does not read
+    as broken. That count has to mean the same thing stepInPasses decides,
+    or the room watches a counter hit its target and nothing happen.
+
+    Rather than assert a handful of hand-picked numbers, walk every room
+    size and check the threshold is EXACTLY the point where stepInPasses
+    flips: one vote short must fail, and the threshold itself must pass.
+  */
+  it('is exactly the vote count at which a step in starts passing', () => {
+    for (let others = 1; others <= 8; others++) {
+      const names = Array.from({ length: others }, (_, i) => `p${i}`);
+      const mics = people('holder', ...names);
+      const need = stepInThreshold(mics, 'holder');
+
+      expect(stepInPasses(names.slice(0, need), mics, 'holder')).toBe(true);
+      expect(stepInPasses(names.slice(0, need - 1), mics, 'holder')).toBe(false);
+    }
+  });
+
+  it('ignores the holder when counting, as the rule does', () => {
+    // Four mic people, one holding: the vote is of the three others, so a
+    // majority is 2 — not 3, which counting all four would give.
+    expect(stepInThreshold(people('holder', 'a', 'b', 'c'), 'holder')).toBe(2);
   });
 });

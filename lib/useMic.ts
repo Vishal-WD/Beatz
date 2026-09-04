@@ -20,16 +20,18 @@ export function useMic(roomUuid: string | null) {
   const [people, setPeople] = useState<MicPerson[]>([]);
   const [holderId, setHolderId] = useState<string | null>(null);
   const [nominations, setNominations] = useState<Nomination[]>([]);
+  const [stepIns, setStepIns] = useState<Record<string, string[]>>({});
 
   const refresh = useCallback(async () => {
     if (!roomUuid) {
-      setPeople([]); setHolderId(null); setNominations([]);
+      setPeople([]); setHolderId(null); setNominations([]); setStepIns({});
       return;
     }
     const s = await fetchMicState(roomUuid);
     setPeople(s.people);
     setHolderId(s.holderId);
     setNominations(s.nominations);
+    setStepIns(s.stepIns);
   }, [roomUuid]);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -58,6 +60,7 @@ export function useMic(roomUuid: string | null) {
     people,
     holderId,
     nominations,
+    stepIns,
     isHolder: isSignedIn && holderId === profile.id,
     isMicPerson: isSignedIn && people.some((p) => p.playerId === profile.id),
     winner: winningNomination(nominations),

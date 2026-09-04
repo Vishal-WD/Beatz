@@ -74,3 +74,20 @@ export function stepInPasses(
   const counted = new Set(votes.filter((v) => eligible.has(v)));
   return counted.size > others.length / 2;
 }
+
+/**
+ * How many votes a STEP IN still needs to carry — the number the panel
+ * shows as "2 OF 3 NEEDED".
+ *
+ * This exists because `stepInPasses` answers yes/no and a player wants to
+ * know how far off they are. Keeping it here, next to the rule it mirrors,
+ * is what stops the two from drifting: the smallest k satisfying
+ * `k > others / 2` is `floor(others / 2) + 1`, and `mic.test.ts` pins that
+ * equivalence across room sizes rather than trusting the algebra.
+ *
+ * `holderId` is excluded the same way `stepInPasses` excludes it.
+ */
+export function stepInThreshold(micPeople: MicPerson[], holderId: string): number {
+  const others = micPeople.filter((p) => p.playerId !== holderId).length;
+  return Math.floor(others / 2) + 1;
+}

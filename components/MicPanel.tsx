@@ -21,9 +21,10 @@
  * is worse than no button, so the client gate matters too.
  */
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import type { SongCard } from '@/types/cards';
 import type { MicMode, Nomination } from '@/lib/domain/mic';
+import { stepInPasses, stepInThreshold } from '@/lib/domain/mic';
 import type { useMic } from '@/lib/useMic';
 import { useAuth } from '@/lib/useAuth';
 import { SongCardView } from '@/components/SongCardView';
@@ -90,17 +91,21 @@ function Row({ children }: { children: React.ReactNode }) {
 }
 
 function SoloMic({ mic }: { mic: Mic }) {
+  const { profile } = useAuth();
   const holder = mic.people.find((p) => p.playerId === mic.holderId);
   const others = mic.people.filter((p) => p.playerId !== mic.holderId);
-  // Fire-and-forget acknowledgement only: useMic's stepIn() does not
-  // return or expose a per-candidate vote count (fetchMicState reads
-  // mic_people + nominations, not step_in_votes), so there is nothing
-  // real to show as "votes so far / threshold". Rather than invent a
-  // number, this just confirms the tap registered.
-  const [requested, setRequested] = useState<Set<string>>(new Set());
+  // A request needs strictly more than half of the OTHER mic people to
+  // carry — the rule pass_mic enforces server-side and stepInPasses
+  // (lib/domain/mic.ts) encodes for tests. Whether a request HAS carried
+  // is always asked of stepInPasses, never re-decided here, so the badge
+  // can never disagree with the server about the outcome.
+  //
+  // The count itself ("2 OF 3 NEEDED") comes from stepInThreshold, which
+  // lives beside the rule and is tested against it, so this file never
+  // decides the arithmetic on its own.
+  const threshold = stepInThreshold(mic.people, mic.holderId ?? '');
 
   const onStepIn = useCallback((candidateId: string) => {
-    setRequested((s) => new Set(s).add(candidateId));
     void mic.stepIn(candidateId);
   }, [mic]);
 
@@ -123,21 +128,45 @@ function SoloMic({ mic }: { mic: Mic }) {
         A STEP IN HANDS OVER THE MIC AFTER THE CURRENT SONG ENDS, NEVER MID-TRACK.
       </div>
 
-      {mic.isMicPerson && others.length > 0 && (
+      {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
           {others.map((p) => {
-            const isRequested = requested.has(p.playerId);
+            // Only OTHER mic people's votes count toward a handover — a
+            // vote from someone who has since left the mic, or was never
+            // on it, would inflate what the player sees here past what
+            // the server (pass_mic) will actually honour. Filtering
+            // against the current mic.people list keeps the displayed
+            // count and the server's count in agreement.
+            const eligibleIds = new Set(others.map((o) => o.playerId));
+            const rawVotes = mic.stepIns[p.playerId] ?? [];
+            const votes = rawVotes.filter((v) => eligibleIds.has(v));
+            const voteCount = new Set(votes).size;
+            const carried = stepInPasses(votes, mic.people, mic.holderId ?? '');
+            const iVoted = mic.isMicPerson && votes.includes(profile.id);
+
             return (
               <Row key={p.playerId}>
                 <span style={{ font: '400 11px/1 var(--font-stat)', flex: 1 }}>{p.displayName}</span>
-                <button
-                  onClick={() => onStepIn(p.playerId)}
-                  disabled={isRequested}
-                  aria-label={isRequested ? `Step-in requested for ${p.displayName}` : `Request step in for ${p.displayName}`}
-                  style={isRequested ? PILL_BUTTON_DONE : PILL_BUTTON}
-                >
-                  {isRequested ? 'REQUESTED' : 'STEP IN'}
-                </button>
+                {(voteCount > 0 || carried) && (
+                  <span style={{ font: '700 8px/1 var(--font-tele)', letterSpacing: '.1em', color: carried ? 'var(--neon-mint)' : 'var(--ink-40)' }}>
+                    {carried ? 'CARRIED' : `${voteCount} OF ${threshold} NEEDED`}
+                  </span>
+                )}
+                {/*
+                  Only mic people get the button at all — the crowd sees
+                  the same name and the same count with nothing tappable.
+                */}
+                {mic.isMicPerson && (
+                  <button
+                    onClick={() => onStepIn(p.playerId)}
+                    disabled={iVoted}
+                    aria-pressed={iVoted}
+                    aria-label={iVoted ? `Step-in requested for ${p.displayName}` : `Request step in for ${p.displayName}`}
+                    style={iVoted ? PILL_BUTTON_DONE : PILL_BUTTON}
+                  >
+                    {iVoted ? 'REQUESTED' : 'STEP IN'}
+                  </button>
+                )}
               </Row>
             );
           })}

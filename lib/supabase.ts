@@ -344,12 +344,19 @@ export async function fetchMicState(roomUuid: string): Promise<{
   people: MicPerson[];
   holderId: string | null;
   nominations: Nomination[];
+  /**
+   * Pending step-in requests: candidate id -> the player ids who voted for
+   * them. Only votes from OTHER mic people count toward a handover, and the
+   * server (pass_mic) owns that rule — this is for display, so the panel can
+   * show how close a request is instead of a bare "requested".
+   */
+  stepIns: Record<string, string[]>;
 }> {
-  const empty = { people: [], holderId: null, nominations: [] };
+  const empty = { people: [], holderId: null, nominations: [], stepIns: {} };
   const db = supabase();
   if (!db || !roomUuid) return empty;
 
-  const [peopleRes, nomRes] = await Promise.all([
+  const [peopleRes, nomRes, stepInRes] = await Promise.all([
     db.from('mic_people')
       .select('player_id, is_holder, profiles(display_name)')
       .eq('room_id', roomUuid),
@@ -357,11 +364,14 @@ export async function fetchMicState(roomUuid: string): Promise<{
       .select('id, player_id, card_id, nomination_votes(player_id)')
       .eq('room_id', roomUuid)
       .is('played_at', null),
+    db.from('step_in_votes')
+      .select('candidate_id, voter_id')
+      .eq('room_id', roomUuid),
   ]);
 
-  if (peopleRes.error || nomRes.error) {
+  if (peopleRes.error || nomRes.error || stepInRes.error) {
     console.warn('[supabase] fetchMicState:',
-      peopleRes.error?.message ?? nomRes.error?.message);
+      peopleRes.error?.message ?? nomRes.error?.message ?? stepInRes.error?.message);
     return empty;
   }
 
@@ -394,7 +404,13 @@ export async function fetchMicState(roomUuid: string): Promise<{
     };
   });
 
-  return { people, holderId: holderRow?.player_id ?? null, nominations };
+  const stepIns: Record<string, string[]> = {};
+  for (const r of stepInRes.data ?? []) {
+    const row = r as unknown as { candidate_id: string; voter_id: string };
+    (stepIns[row.candidate_id] ??= []).push(row.voter_id);
+  }
+
+  return { people, holderId: holderRow?.player_id ?? null, nominations, stepIns };
 }
 
 /** Offers one of your own cards for the room to vote on. */
