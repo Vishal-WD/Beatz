@@ -37,10 +37,6 @@ import { MicPanel } from '@/components/MicPanel';
    open door means no guest list turns them away on first launch. */
 const ROOM_SLUG = 'last-train-disco';
 
-/* How many cards the fan can show legibly at phone width. The collection is
-   paged at this size, never truncated to it. */
-const HAND_SIZE = 5;
-
 /** Player-facing sentence for each refusal `canPlayCard` can return. */
 const REFUSAL_COPY: Record<PlayRefusal, string> = {
   guest_card_in_event_room: 'Event room — owned cards only.',
@@ -80,8 +76,8 @@ export default function DeckScreen() {
     the shop pointless: you could buy cards you could never play.
 
     The fan can only show a handful legibly at phone width, so the hand is
-    PAGED rather than truncated. Every card stays reachable; only HAND_SIZE
-    of them are on screen at once.
+    scrolled rather than truncated: the rail below carries all of them and
+    you flick through it.
   */
   const sorted = useMemo(() => {
     const rank = { legendary: 0, epic: 1, rare: 2, common: 3 } as const;
@@ -89,15 +85,9 @@ export default function DeckScreen() {
   }, [pool]);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [handPage, setHandPage] = useState(0);
-  const pageCount = Math.max(1, Math.ceil(sorted.length / HAND_SIZE));
-  // A collection that shrinks (or a signed-out swap) must not strand the
-  // view on a page that no longer exists.
-  const page = Math.min(handPage, pageCount - 1);
-  const hand5 = useMemo(
-    () => sorted.slice(page * HAND_SIZE, page * HAND_SIZE + HAND_SIZE),
-    [sorted, page],
-  );
+  /* The rail scrolls, so every card is reachable and nothing is sliced
+     away. Kept as its own name because the deck slot filters one out. */
+  const hand5 = sorted;
 
   /*
     The room's format/mode/host/id come from the `rooms` table, not the live
@@ -427,17 +417,39 @@ export default function DeckScreen() {
           }}>
             {dbRoom?.name ?? 'LOADING…'}
           </span>
+          {/*
+            A pill with a glyph and a chevron, not a bare word in a box.
+            The chevron is what says "this opens something" -- on iOS that
+            affordance is carried by the shape, not by a label.
+          */}
           <button
             onClick={() => { setPickerOpen(true); play('tap'); haptic('light'); }}
+            data-press
+            aria-label="Switch or open a room"
             style={{
               flexShrink: 0,
-              font: '700 8px/1 var(--font-tele)', letterSpacing: '.14em',
-              padding: '7px 11px', borderRadius: 'var(--radius-sm)',
-              background: 'var(--surface-inset)', border: 'var(--border-hair)',
-              color: 'var(--ink-60)',
+              display: 'flex', alignItems: 'center', gap: 6,
+              font: '600 11px/1 var(--font-body)', letterSpacing: '-0.01em',
+              padding: '9px 12px 9px 11px', borderRadius: 'var(--radius-pill)',
+              background: 'var(--glass-regular)',
+              backdropFilter: 'var(--glass-blur-thin)',
+              WebkitBackdropFilter: 'var(--glass-blur-thin)',
+              border: 'var(--border-hair)',
+              boxShadow: 'var(--glass-edge)',
+              color: 'var(--ink)',
             }}
           >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden
+                 stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              {/* Two overlapping panes — rooms you can move between */}
+              <rect x="3" y="6" width="12" height="12" rx="3.2" />
+              <path d="M8 6V4.8A1.8 1.8 0 0 1 9.8 3h9.4A1.8 1.8 0 0 1 21 4.8v9.4a1.8 1.8 0 0 1-1.8 1.8H18" />
+            </svg>
             ROOMS
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden
+                 stroke="var(--ink-40)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
           </button>
         </div>
 
@@ -576,67 +588,57 @@ export default function DeckScreen() {
             )}
           </div>
           {/*
-            Only shown when the collection outgrows one fan. A player with a
-            starter pack has 21 cards and would otherwise reach five.
-          */}
-          {pageCount > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 4 }}>
-              <button
-                onClick={() => { setHandPage((p) => Math.max(0, p - 1)); play('tap'); haptic('light'); }}
-                disabled={page === 0}
-                aria-label="Previous cards"
-                style={{
-                  font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
-                  padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                  background: 'var(--surface-inset)', border: 'var(--border-hair)',
-                  color: 'var(--ink-60)', opacity: page === 0 ? 0.35 : 1,
-                }}
-              >
-                ‹ PREV
-              </button>
-              <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)' }}>
-                {page * HAND_SIZE + 1}–{Math.min((page + 1) * HAND_SIZE, sorted.length)} OF {sorted.length}
-              </span>
-              <button
-                onClick={() => { setHandPage((p) => Math.min(pageCount - 1, p + 1)); play('tap'); haptic('light'); }}
-                disabled={page >= pageCount - 1}
-                aria-label="More cards"
-                style={{
-                  font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
-                  padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                  background: 'var(--surface-inset)', border: 'var(--border-hair)',
-                  color: 'var(--ink-60)', opacity: page >= pageCount - 1 ? 0.35 : 1,
-                }}
-              >
-                NEXT ›
-              </button>
-            </div>
-          )}
+            A scroll rail, not a pager.
 
-          <div style={{ position: 'relative', height: 'clamp(120px, 18dvh, 150px)', display: 'flex', justifyContent: 'center' }}>
-            {hand.map((c, i) => {
-              const mid = (hand.length - 1) / 2;
-              const off = i - mid;
-              return (
+            This was ‹ PREV / NEXT › over a five-card fan, so reaching card
+            20 of 21 meant four taps and the fan could never show more than
+            five. A horizontal snap rail carries the WHOLE collection: you
+            flick through it the way you flick any iOS row, and each card
+            settles into place because of scroll-snap rather than a
+            transition we drive by hand.
+
+            The count moves into the header above; the rail itself needs no
+            chrome to explain it.
+          */}
+          <div
+            role="list"
+            aria-label={`Your cards, ${sorted.length} total`}
+            style={{
+              display: 'flex',
+              gap: 12,
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorX: 'contain',
+              // Breathing room so the first and last card can centre.
+              padding: '4px 50% 10px',
+              scrollPaddingInline: '50%',
+            }}
+          >
+            {hand.map((c, i) => (
+              <div
+                key={c.id}
+                role="listitem"
+                data-rise
+                style={{
+                  scrollSnapAlign: 'center',
+                  flexShrink: 0,
+                  // Each card lands a beat after the one before it.
+                  animationDelay: `${Math.min(i, 8) * 35}ms`,
+                }}
+              >
                 <button
-                  key={c.id}
+                  data-press
                   onClick={() => onPlayCard(c)}
-                  style={{
-                    position: 'absolute',
-                    left: `calc(50% + ${off * 52}px)`,
-                    transform: `translateX(-50%) rotate(${off * 6}deg) translateY(${Math.abs(off) * 9}px)`,
-                    transformOrigin: 'bottom center',
-                    zIndex: 10 + i,
-                    transition: 'transform .2s ease',
-                  }}
+                  style={{ display: 'block', background: 'none', border: 'none', padding: 0 }}
                   /* Stats belong in the label: choosing between a high-hype
                      burner and a high-stamina holder is the whole decision. */
                   aria-label={`Play ${c.title} by ${c.subtitle}. ${RARITY[c.rarity].label}. Hype ${c.hype}, stamina ${c.stamina}.`}
                 >
                   <SongCardView card={c} size="sm" />
                 </button>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       </div>

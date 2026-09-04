@@ -14,9 +14,24 @@ describe('design tokens', () => {
     }
   });
 
-  it('defines square-corner radii only (Industry grammar, spec 7.1)', () => {
+  /*
+    The original grammar was square corners (spec 7.1, --radius-sm: 2px).
+    The app moved to an iOS-style material where controls are rounded or
+    pill-shaped; 2px was why every chip read as a plain box. The rule worth
+    pinning now is that the ladder EXISTS and is ordered, not that it is
+    square -- a radius scale nobody can rank is how ad-hoc corner values
+    creep back in.
+  */
+  it('defines an ordered radius ladder', () => {
     expect(css).toContain('--radius-none: 0');
-    expect(css).toContain('--radius-sm: 2px');
+    for (const step of ['--radius-sm:', '--radius-md:', '--radius-lg:', '--radius-pill:']) {
+      expect(css).toContain(step);
+    }
+
+    const px = (name: string) =>
+      Number((css.match(new RegExp(`${name}:\\s*(\\d+)px`)) ?? [])[1]);
+    expect(px('--radius-sm')).toBeLessThan(px('--radius-md'));
+    expect(px('--radius-md')).toBeLessThan(px('--radius-lg'));
   });
 
   it('defines the hairline border and registration mark size', () => {

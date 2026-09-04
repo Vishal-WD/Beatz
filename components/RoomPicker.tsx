@@ -81,18 +81,24 @@ export function RoomPicker({
 
   return (
     <Sheet open={open} onClose={onClose} title="ROOMS">
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+      {/* iOS segmented control: one recessed track, the selection is a
+          pill that moves inside it -- not two separate boxes. */}
+      <div style={{
+        display: 'flex', gap: 4, marginBottom: 16, padding: 4,
+        borderRadius: 'var(--radius-pill)', background: 'var(--surface-inset)',
+      }}>
         {(['join', 'create'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
               flex: 1,
-              font: '700 9px/1 var(--font-tele)', letterSpacing: '.16em',
-              padding: '9px 0', borderRadius: 'var(--radius-sm)',
-              background: tab === t ? 'var(--ink)' : 'var(--surface-inset)',
+              font: '600 12px/1 var(--font-body)', letterSpacing: '-0.01em',
+              padding: '10px 0', borderRadius: 'var(--radius-pill)',
+              background: tab === t ? 'var(--ink)' : 'transparent',
               color: tab === t ? 'var(--ink-on-neon)' : 'var(--ink-60)',
-              border: 'var(--border-hair)',
+              border: 'none',
+              transition: 'background .22s var(--ease-ios), color .22s var(--ease-ios)',
             }}
           >
             {t === 'join' ? 'JOIN' : 'OPEN A ROOM'}
@@ -116,11 +122,17 @@ export function RoomPicker({
               <button
                 key={r.id}
                 onClick={() => { if (!here) { onEnter(r.slug); onClose(); } }}
+                data-press
+                data-rise
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  gap: 10, padding: 12, borderRadius: 'var(--radius-sm)',
-                  background: 'var(--booth-panel)',
-                  border: 'var(--border-hair)', textAlign: 'left',
+                  gap: 10, padding: 14, borderRadius: 'var(--radius-lg)',
+                  background: 'var(--glass-regular)',
+                  backdropFilter: 'var(--glass-blur-thin)',
+                  WebkitBackdropFilter: 'var(--glass-blur-thin)',
+                  border: 'var(--border-hair)',
+                  boxShadow: 'var(--glass-edge)',
+                  textAlign: 'left',
                   opacity: here ? 0.55 : 1,
                 }}
               >
@@ -171,12 +183,15 @@ export function RoomPicker({
                 <button
                   key={f.id}
                   onClick={() => setFormat(f.id)}
+                  data-press
                   style={{
-                    font: '700 8px/1.3 var(--font-tele)', letterSpacing: '.1em',
-                    padding: '10px 8px', borderRadius: 'var(--radius-sm)',
+                    font: '600 11px/1.35 var(--font-body)', letterSpacing: '-0.01em',
+                    padding: '12px 11px', borderRadius: 'var(--radius-md)',
                     background: format === f.id ? 'var(--ink)' : 'var(--surface-inset)',
                     color: format === f.id ? 'var(--ink-on-neon)' : 'var(--ink-60)',
-                    border: 'var(--border-hair)', textAlign: 'left',
+                    border: format === f.id ? '1px solid transparent' : 'var(--border-hair)',
+                    textAlign: 'left',
+                    transition: 'background .2s var(--ease-ios), color .2s var(--ease-ios)',
                   }}
                 >
                   {f.label.toUpperCase()}
@@ -200,8 +215,8 @@ export function RoomPicker({
                     key={m}
                     onClick={() => setMicMode(m)}
                     style={{
-                      flex: 1, font: '700 8px/1 var(--font-tele)', letterSpacing: '.1em',
-                      padding: '9px 6px', borderRadius: 'var(--radius-sm)',
+                      flex: 1, font: '600 11px/1 var(--font-body)', letterSpacing: '-0.01em',
+                      padding: '11px 6px', borderRadius: 'var(--radius-pill)',
                       background: micMode === m ? 'var(--ink)' : 'var(--surface-inset)',
                       color: micMode === m ? 'var(--ink-on-neon)' : 'var(--ink-60)',
                       border: 'var(--border-hair)',
@@ -229,8 +244,8 @@ export function RoomPicker({
                   key={v}
                   onClick={() => setCardRule(v)}
                   style={{
-                    flex: 1, font: '700 8px/1 var(--font-tele)', letterSpacing: '.1em',
-                    padding: '9px 6px', borderRadius: 'var(--radius-sm)',
+                    flex: 1, font: '600 11px/1 var(--font-body)', letterSpacing: '-0.01em',
+                    padding: '11px 6px', borderRadius: 'var(--radius-pill)',
                     background: cardRule === v ? 'var(--ink)' : 'var(--surface-inset)',
                     color: cardRule === v ? 'var(--ink-on-neon)' : 'var(--ink-60)',
                     border: 'var(--border-hair)',

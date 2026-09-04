@@ -14,11 +14,13 @@
  * /deck -- the same class of bug as the sign-in flash.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { useAuth } from '@/lib/useAuth';
+import { Avatar } from '@/components/Avatar';
+import { uploadAvatar } from '@/lib/supabase';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useOnboarding } from '@/lib/useOnboarding';
 import { useSound } from '@/lib/useSound';
@@ -33,8 +35,23 @@ type Stage = 'greet' | 'open' | 'done';
 const STARTER_PACK_TIMEOUT_MS = 10_000;
 
 export default function WelcomeScreen() {
+  const { isLoading, isSignedIn, profile, refreshProfile } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarNote, setAvatarNote] = useState<string | null>(null);
+
+  const pickAvatar = useCallback(async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarBusy(true);
+    setAvatarNote(null);
+    const res = await uploadAvatar(file);
+    setAvatarBusy(false);
+    setAvatarNote('error' in res ? res.error : 'Looking good.');
+    if (!('error' in res)) void refreshProfile();
+  }, [refreshProfile]);
+
   const router = useRouter();
-  const { isLoading, isSignedIn, profile } = useAuth();
+
   const { cards, owned, refetch } = useOwnedCards();
   const { finish } = useOnboarding();
   const { play } = useSound();
@@ -141,7 +158,46 @@ export default function WelcomeScreen() {
           room&rsquo;s live reaction — the Vibe Bar — decides how it goes.
           You&rsquo;ve already been granted a starter pack.
         </p>
-        <button onClick={openPack} style={btnPrimary}>
+        {/*
+          The picture is asked for HERE rather than buried in settings,
+          because this is the one moment a new player is already thinking
+          about who they are in the room. It is skippable and says so: a
+          gradient avatar is a real answer, not a placeholder, so blocking
+          the starter pack behind a file picker would be hostile.
+        */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 26 }}>
+          <Avatar id={profile.id} initials={profile.initials} url={profile.avatar_url} size={62} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => void pickAvatar(e.target.files?.[0])}
+              style={{ display: 'none' }}
+            />
+            <button
+              data-press
+              onClick={() => fileRef.current?.click()}
+              disabled={avatarBusy}
+              style={{
+                font: '600 12px/1 var(--font-body)',
+                padding: '10px 14px', borderRadius: 'var(--radius-pill)',
+                background: 'var(--glass-regular)',
+                backdropFilter: 'var(--glass-blur-thin)',
+                WebkitBackdropFilter: 'var(--glass-blur-thin)',
+                border: 'var(--border-hair)', boxShadow: 'var(--glass-edge)',
+                color: 'var(--ink)',
+              }}
+            >
+              {avatarBusy ? 'UPLOADING…' : profile.avatar_url ? 'CHANGE PICTURE' : 'ADD A PICTURE'}
+            </button>
+            <span style={{ font: '400 10px/1.4 var(--font-body)', color: 'var(--ink-40)' }}>
+              {avatarNote ?? 'Optional — your gradient works too.'}
+            </span>
+          </div>
+        </div>
+
+        <button data-press onClick={openPack} style={btnPrimary}>
           TEAR IT OPEN
         </button>
       </Shell>

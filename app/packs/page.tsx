@@ -28,6 +28,20 @@ import { PACKS, type PackTier } from '@/lib/domain/packs';
    as four bare integers. */
 const SEALED = 0, TEARING = 1, FLIPPING = 2, PULLED = 3;
 
+/**
+ * Per-tier identity.
+ *
+ * The three tiles were one flat panel repeated with different text, so the
+ * ladder they are meant to express -- save up for the Headliner -- was
+ * invisible. Each tier now carries a wash and a glyph, warming as the tier
+ * climbs, so the tile itself says which rung it is.
+ */
+const TIER_SKIN: Record<PackTier, { wash: string; edge: string; glyph: string }> = {
+  starter:   { wash: 'var(--tier-starter-wash)',   edge: 'var(--tier-starter-edge)',   glyph: '○' },
+  night:     { wash: 'var(--tier-night-wash)',     edge: 'var(--tier-night-edge)',     glyph: '◐' },
+  headliner: { wash: 'var(--tier-headliner-wash)', edge: 'var(--tier-headliner-edge)', glyph: '◆' },
+};
+
 const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
 const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP FOR THE NEXT CARD'];
 
@@ -160,7 +174,7 @@ export default function PacksScreen() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {Object.values(PACKS).map((def) => {
+            {Object.values(PACKS).map((def, idx) => {
               const affordable = pack.affordable(def.id);
               const shortfall = def.cost - pack.drops;
               const disabled = !pack.isSignedIn || !affordable;
@@ -171,19 +185,51 @@ export default function PacksScreen() {
                   type="button"
                   disabled={disabled}
                   onClick={() => selectTier(def.id)}
+                  data-press
+                  data-rise
                   style={{
+                    position: 'relative',
+                    overflow: 'hidden',
                     textAlign: 'left',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 6,
                     padding: 18,
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--booth-panel)',
-                    border: 'var(--border-hair)',
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'var(--glass-regular)',
+                    backdropFilter: 'var(--glass-blur)',
+                    WebkitBackdropFilter: 'var(--glass-blur)',
+                    border: `1px solid ${TIER_SKIN[def.id].edge}`,
+                    boxShadow: `var(--glass-edge), var(--apple-card-shadow)`,
                     opacity: disabled ? 0.45 : 1,
                     cursor: disabled ? 'default' : 'pointer',
+                    animationDelay: `${idx * 70}ms`,
                   }}
                 >
+                  {/*
+                    A tier is identifiable before you read a word of it. The
+                    three tiles were the same flat panel with different text,
+                    so choosing between them meant reading three prices; the
+                    wash and the glyph do that work at a glance.
+                  */}
+                  <span
+                    aria-hidden
+                    style={{
+                      position: 'absolute', inset: 0,
+                      background: TIER_SKIN[def.id].wash,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <span
+                    aria-hidden
+                    style={{
+                      position: 'absolute', right: -14, top: -10,
+                      fontSize: 82, lineHeight: 1, opacity: 0.13,
+                      transform: 'rotate(-12deg)', pointerEvents: 'none',
+                    }}
+                  >
+                    {TIER_SKIN[def.id].glyph}
+                  </span>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                     <span style={{ font: '400 20px/1 var(--font-title)', textTransform: 'uppercase', color: 'var(--ink)' }}>
                       {def.label}

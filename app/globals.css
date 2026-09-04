@@ -104,7 +104,12 @@
 
   /* Corner Radii */
   --radius-none: 0;
-  --radius-sm: 2px;
+  /*
+    Was 2px, which is why every chip and button read as a plain box: iOS
+    controls are pill-or-rounded, never square. 10px is the continuous-corner
+    look at control size; anything smaller stops reading as intentional.
+  */
+  --radius-sm: 10px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-pill: 9999px;
@@ -120,6 +125,42 @@
   /* Apple Translucent Glass & Hairline Borders */
   --border-hair: 1px solid var(--hairline);
   --border-strong: 1px solid rgba(255, 255, 255, 0.18);
+  /*
+    Materials, in iOS's sense: a surface is defined by how much of what is
+    behind it comes through, not by a flat fill. Three depths, because one
+    glass value used everywhere flattens the hierarchy it exists to create.
+
+    saturate() above 100% is what stops a blurred dark surface going muddy
+    grey -- it keeps the colour of whatever is behind it alive.
+  */
+  --glass-thin: rgba(28, 28, 30, 0.55);
+  --glass-regular: rgba(28, 28, 30, 0.72);
+  --glass-thick: rgba(22, 22, 24, 0.88);
+  --glass-blur-thin: blur(14px) saturate(170%);
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-blur-thick: blur(36px) saturate(190%);
+
+  /* A hairline highlight along the top edge. On iOS this is what makes a
+     translucent panel look like a pane of glass catching light rather than
+     a flat rectangle with opacity. */
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+
+  /* Pressed feedback. iOS controls dim and shrink a touch rather than
+     changing colour -- the state reads instantly and needs no new hue. */
+  --press-scale: scale(0.96);
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: linear(0, 0.006, 0.025, 0.101, 0.539, 0.826, 0.94, 0.997, 1.03, 1.02, 1.004, 1);
+
+  /* Pack tier identity. Defined here, not in the screen, because
+     app/no-raw-colours.test.ts requires screens pick tokens rather than
+     literals -- and it caught these when they were inline. */
+  --tier-starter-wash: linear-gradient(135deg, rgba(90, 200, 250, 0.16), transparent 62%);
+  --tier-starter-edge: rgba(90, 200, 250, 0.28);
+  --tier-night-wash: linear-gradient(135deg, rgba(175, 82, 222, 0.20), transparent 62%);
+  --tier-night-edge: rgba(175, 82, 222, 0.32);
+  --tier-headliner-wash: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(250, 45, 85, 0.14) 58%, transparent 78%);
+  --tier-headliner-edge: rgba(255, 214, 10, 0.38);
+
   --apple-glass: rgba(28, 28, 30, 0.78);
   --apple-glass-blur: blur(24px) saturate(180%);
   --apple-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -133,91 +174,15 @@
 }
 
 /*
-  Light theme.
+  There is no light palette.
 
-  Binds the SAME token names as the dark palette above, so no component
-  ever branches on which theme is active — a screen asks for --ink and gets
-  whatever ink means right now.
-
-  The four rarity accents are deliberately absent: --neon-pink, --neon-cyan,
-  --neon-gold, --neon-violet and --neon-mint keep their dark-theme values in
-  both themes. Rarity is how a card is read at a glance, and a legendary
-  that changes colour with the theme stops being recognisable. Only the
-  ground, the ink on it, and the lines between them invert.
+  One existed and was never finished: the accents stayed tuned for a dark
+  ground, so on a light one the gold measured 1.29:1 and the cyan 1.73:1 --
+  unreadable, not merely off-brand. Rather than ship a half-theme, the app
+  commits to dark, which is also what a neon-on-translucent-glass material
+  actually wants. `data-theme` is no longer read by anything.
 */
-:root[data-theme='light'] {
-  /* Warm cream, not cool grey. A neutral #f4f4f7 next to the plum dark
-     ground reads as two unrelated apps; cream shares the dark palette's
-     warmth, so the toggle feels like one product changing state. */
-  --stage-black: #faf6ef;
-  --booth-panel: #ffffff;
 
-  /* Warm near-black rather than blue-black, for the same reason. */
-  --ink: #1c1917;
-  --ink-60: rgba(28, 25, 23, 0.74);
-  --ink-40: rgba(28, 25, 23, 0.64);
-  --ink-25: rgba(28, 25, 23, 0.48);
-
-  --hairline: rgba(28, 25, 23, 0.12);
-  --border-strong: 1px solid rgba(28, 25, 23, 0.26);
-
-  /*
-    THE ACCENTS MUST BE DARKENED HERE, and this is not a style preference.
-
-    The dark palette's neons are tuned to glow on a dark ground. On cream
-    they collapse: #ffd60a gold measured 1.29:1 against the light ground and
-    #5ac8fa cyan 1.73:1 -- both far under the 4.5:1 AA floor, and the reason
-    41 elements on /chart alone were unreadable in light mode.
-
-    Same hues, darkened until each clears AA on cream, on white, AND carries
-    white text when used as a fill. Rarity still reads as rarity because the
-    hue relationships are preserved; only the luminance moves.
-  */
-  --neon-pink: #d1003f;
-  --neon-cyan: #0071a4;
-  --neon-gold: #8a6d00;
-  --neon-violet: #7c3aed;
-  --neon-mint: #0f7a34;
-  --neon-rose: #c2185b;
-
-  /* Same hue families, darkened to read as text on cream. The frames and
-     badges in lib/rarity.ts are untouched -- only reading text moves. */
-  --rarity-common-text: #8a6134;
-  --rarity-rare-text: #5a6675;
-  --rarity-epic-text: #8a6d00;
-  --rarity-legendary-text: #b02a6e;
-  --profile-text: #0071a4;
-
-  /* Text sitting on those darkened fills. In dark mode the fills are bright
-     and this is near-black; here they are deep and it is white. It tracks
-     the FILL, which is exactly why it cannot be one fixed value. */
-  --ink-on-neon: #ffffff;
-
-  /* Same role as dark's --surface-inset -- a faint fill distinct from
-     --hairline's border role -- recomposed as a dark tint on the light
-     ground instead of a white one. */
-  --surface-inset: rgba(10, 8, 18, 0.035);
-
-  /* --gold-wash, --gold-wash-border and --vibe-hold-glow are surfaces, not
-     fixed accents (unlike --neon-gold itself): each is recomposed here so
-     the tint stays visible against the light --stage-black / --booth-panel
-     instead of washing out. Same hue, different alpha/composition. */
-  --gold-wash: rgba(255, 191, 20, 0.16);
-  --gold-wash-border: rgba(196, 138, 0, 0.55);
-  --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.22), rgba(76, 227, 255, 0.22));
-
-  /* --scrim, --scrim-modal, --ink-fixed, --art-slot and --video-backdrop
-     are deliberately absent here: each sits on (or is) an illustrated or
-     fixed surface that does not itself change with theme, so the value must
-     not change either. --scrim-modal darkens whatever is behind a sheet,
-     and that job is the same in both palettes.
-
-     --ink-on-neon and the --neon-* accents are NOT in that group any more.
-     They are redefined above because the fills they describe DO change:
-     dark mode fills bright and needs dark text, light mode fills deep and
-     needs white. Treating them as invariant is what made the light theme
-     unreadable. */
-}
 
 * {
   box-sizing: border-box;
@@ -389,3 +354,40 @@ button {
   100% { transform: scale(1.35); opacity: 0; }
 }
 
+
+/*
+  Press feedback, iOS-style: the control dips and dims for the duration of
+  the touch, then springs back. It is the single cheapest thing that makes a
+  button feel like a physical object rather than a link.
+
+  Opt-in via [data-press] rather than a blanket `button:active`, because a
+  few controls (the vibe hold, the card fan) already own their own press
+  behaviour and must not get two.
+*/
+[data-press] {
+  transition: transform 0.22s var(--ease-spring), opacity 0.16s var(--ease-ios),
+              background 0.18s var(--ease-ios);
+  -webkit-tap-highlight-color: transparent;
+}
+[data-press]:active {
+  transform: var(--press-scale);
+  opacity: 0.82;
+}
+[data-press]:disabled {
+  transform: none;
+}
+
+/* Staggered list entry. Items land a beat apart instead of all at once,
+   which is what makes an iOS list feel composed rather than dumped. */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+[data-rise] {
+  animation: riseIn 0.42s var(--ease-ios) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-press], [data-rise] { animation: none; transition: none; }
+  [data-press]:active { transform: none; }
+}

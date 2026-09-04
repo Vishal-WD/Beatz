@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { STAGE_BLACK_META, STAGE_BLACK_META_LIGHT } from './useTheme';
+import { STAGE_BLACK_META } from './useTheme';
 
 /*
   lib/useTheme.ts hand-copies --stage-black out of app/globals.css into
-  STAGE_BLACK_META (and its light counterpart) because <meta
+  STAGE_BLACK_META because <meta
   name="theme-color"> can't reference a CSS custom property. Nothing else
   ties those two files together -- app/no-raw-colours.test.ts only walks
   app/, not lib/ -- so a copy that fell out of sync would ship silently.
@@ -38,12 +38,18 @@ describe('STAGE_BLACK_META tracks --stage-black in globals.css', () => {
     ).toBe(cssValue);
   });
 
-  it("matches the :root[data-theme='light'] value", () => {
-    const cssValue = extractStageBlack(css, /:root\[data-theme=['"]light['"]\]\s*\{[^}]*\}/);
+  /*
+    There is deliberately no light palette any more -- it shipped with
+    accents tuned for a dark ground, which measured as low as 1.29:1 on a
+    light one. This asserts the ABSENCE, so a half-finished light theme
+    cannot creep back in one token at a time without someone deciding to.
+  */
+  it('defines no light palette', () => {
     expect(
-      STAGE_BLACK_META_LIGHT,
-      `lib/useTheme.ts STAGE_BLACK_META_LIGHT (${STAGE_BLACK_META_LIGHT}) no longer matches ` +
-        `--stage-black in ${CSS_PATH}'s :root[data-theme='light'] block (${cssValue}). Update both together.`,
-    ).toBe(cssValue);
+      /:root\[data-theme=['"]light['"]\]/.test(css),
+      `${CSS_PATH} has a light palette block again. If light mode is being ` +
+        'reintroduced, the --neon-* accents must be redefined for a light ' +
+        'ground too, or text on them drops below 2:1.',
+    ).toBe(false);
   });
 });

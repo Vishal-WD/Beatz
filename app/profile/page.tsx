@@ -15,7 +15,6 @@ import { AccountSettings } from '@/components/AccountSettings';
 import { PROFILE_FRAME, RARITY, avatarFor, rarityTextVar } from '@/lib/rarity';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
-import { useTheme } from '@/lib/useTheme';
 import { usePreviewAudio } from '@/lib/usePreviewAudio';
 import { fetchPinnedCards, dbCardToSongCard, updateDisplayName } from '@/lib/supabase';
 import { filterCollection, languagesIn, countsByRarity } from '@/lib/domain/collection';
@@ -30,7 +29,6 @@ export default function ProfileScreen() {
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
   const { profile, isSignedIn, isLoading, signOut, refreshProfile } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
-  const { theme, toggle: toggleTheme } = useTheme();
   /*
     The binder is the player's OWN collection. It used to render the whole
     global catalogue, so every player's binder looked identical and showed
@@ -450,35 +448,12 @@ export default function ProfileScreen() {
           )}
         </div>
 
-        {/* Settings — the theme toggle lives here because this is the
-            settings surface (Plan A's useTheme). */}
-        <div>
-          <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)', marginBottom: 12 }}>
-            SETTINGS
-          </div>
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: 'var(--booth-panel)', borderRadius: 12, padding: 14,
-            }}
-          >
-            <span style={{ font: '400 11px/1 var(--font-body)', color: 'var(--ink)' }}>
-              THEME
-            </span>
-            <button
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-              style={{
-                font: '700 9px/1 var(--font-tele)', letterSpacing: '.14em',
-                padding: '8px 12px', borderRadius: 6,
-                background: 'var(--hairline)', color: 'var(--ink)',
-                border: '1px solid var(--hairline)',
-              }}
-            >
-              {theme === 'dark' ? '🌙 DARK' : '☀️ LIGHT'}
-            </button>
-          </div>
-        </div>
+        {/*
+          The light theme is gone, not hidden. It was never finished -- the
+          accents were tuned for a dark ground and collapsed on a light one,
+          and half-working is worse than absent. Dark is the only palette,
+          which is also what the neon-on-glass material actually wants.
+        */}
       </div>
 
       <AccountSettings

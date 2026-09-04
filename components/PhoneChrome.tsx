@@ -35,58 +35,65 @@ export function StatusBar() {
         letterSpacing: '-0.01em',
       }}
     >
-      <span>9:41</span>
+      {/*
+        The fake clock and battery duplicated the real Android status bar
+        sitting directly above them -- two clocks, two batteries, one of
+        each of them lying. Only the mute control survives, because that one
+        does something.
+      */}
+      <span aria-hidden style={{ opacity: 0 }}>·</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Apple iOS Mute Toggle */}
         <button
           onClick={() => setMuted(toggleMute())}
           aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
           aria-pressed={muted}
           style={{
-            font: '500 12px/1 var(--font-body)',
-            color: muted ? 'var(--neon-pink)' : 'var(--ink-60)',
-            padding: '2px 6px',
+            width: 34,
+            height: 34,
+            display: 'grid',
+            placeItems: 'center',
             borderRadius: 'var(--radius-pill)',
+            border: 'var(--border-hair)',
             background: muted ? 'var(--surface-inset)' : 'transparent',
-            display: 'flex',
-            alignItems: 'center',
+            color: muted ? 'var(--neon-pink)' : 'var(--ink-60)',
+            transition: 'background .18s ease, color .18s ease, transform .18s ease',
           }}
         >
-          {muted ? '🔇' : '🔊'}
+          <SpeakerIcon muted={muted} />
         </button>
-        {/* Apple iOS Battery Icon */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <div
-            style={{
-              width: 22,
-              height: 11,
-              borderRadius: 3.5,
-              border: '1.2px solid var(--ink-40)',
-              padding: 1.5,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: '75%',
-                height: '100%',
-                borderRadius: 1.5,
-                background: 'var(--ink)',
-              }}
-            />
-          </div>
-          <div
-            style={{
-              width: 1.5,
-              height: 4,
-              borderRadius: '0 1px 1px 0',
-              background: 'var(--ink-40)',
-            }}
-          />
-        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Speaker, drawn rather than typed.
+ *
+ * This was the emoji 🔊 / 🔇, which renders in the system emoji font: a
+ * different weight, a different colour, and a different size from every
+ * other glyph in the bar, and it cannot inherit the theme. An inline SVG
+ * takes currentColor, so it tracks the mute state and the palette.
+ *
+ * The muted state crosses out the waves rather than just dimming them --
+ * colour alone is not a state anyone can read at 34px.
+ */
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden
+         stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" fill="currentColor" stroke="none" />
+      {muted ? (
+        <>
+          <path d="m16.5 9.5 5 5" />
+          <path d="m21.5 9.5-5 5" />
+        </>
+      ) : (
+        <>
+          <path d="M15.6 8.4a5 5 0 0 1 0 7.2" />
+          <path d="M18.4 5.6a9 9 0 0 1 0 12.8" />
+        </>
+      )}
+    </svg>
   );
 }
 
