@@ -25,6 +25,8 @@ import { supabase, subscribeToRoom, toggleFollow, type DbRoom } from '@/lib/supa
 import { controlModelFor, canDethrone, type FormatId } from '@/lib/domain/formats';
 import { positionOf } from '@/lib/domain/challengers';
 import { canPlayCard, type PlayRefusal } from '@/lib/domain/play-rules';
+import { usesMic } from '@/lib/domain/mic';
+import { MicPanel } from '@/components/MicPanel';
 
 const ROOM_SLUG = 'basement-4am';
 
@@ -315,6 +317,18 @@ export default function DeckScreen() {
             onFollow={onFollowPerformer}
             following={following}
           />
+        )}
+
+        {/*
+          Concert and Fest arbitrate the mic among themselves (solo hand-off,
+          per-song vote, or a prior setlist — lib/domain/mic.ts). Gated on
+          usesMic(), which is false for Clubbing: one DJ invited at room
+          creation, nothing to arbitrate. Gating on "is spectator" would
+          wrongly pull Clubbing in too. mic_mode is also required — a room
+          can be a Concert/Fest format before a mode has been chosen.
+        */}
+        {usesMic(dbRoom?.format ?? DEFAULT_FORMAT) && dbRoom?.mic_mode && (
+          <MicPanel mode={dbRoom.mic_mode} mic={mic} ownedCards={owned} />
         )}
 
         {/* Live reign strip. In a spectator room this is applause scoring
