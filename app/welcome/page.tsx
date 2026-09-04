@@ -125,7 +125,7 @@ export default function WelcomeScreen() {
     return (
       <Shell>
         <div style={{ font: '400 10px/1 var(--font-tele)', letterSpacing: '.24em', color: 'var(--neon-pink)' }}>
-          WELCOME TO AUXWARS
+          WELCOME TO BEATZ
         </div>
         <h1
           style={{

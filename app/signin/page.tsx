@@ -111,7 +111,7 @@ export default function SignInScreen() {
             WebkitTextFillColor: 'transparent',
           }}
         >
-          AuxWars
+          Beatz
         </h1>
         <p style={{ font: '400 13px/1.6 var(--font-body)', color: 'var(--ink-60)', margin: '0 0 22px' }}>
           Sign in to own your cards and keep your Drops. You can look around

@@ -112,7 +112,7 @@ export default function ThroneRoom() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            AuxWars
+            Beatz
           </div>
           <div style={{ font: '400 10px/1 var(--font-tele)', letterSpacing: '.22em', color: 'var(--ink-40)', marginTop: 5 }}>
             ROOM · BASEMENT 4AM

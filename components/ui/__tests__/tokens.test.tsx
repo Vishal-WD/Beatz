@@ -30,7 +30,7 @@ describe('design tokens', () => {
 
   it('retains the stage black ground and all four rarity accents', () => {
     // Industry's single-accent rule is deliberately rejected here.
-    expect(css).toContain('--stage-black: #05050a');
+    expect(css).toContain('--stage-black: #160f26');
     for (const c of ['--neon-pink', '--neon-cyan', '--neon-gold', '--neon-violet']) {
       expect(css).toContain(c);
     }

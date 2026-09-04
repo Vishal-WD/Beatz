@@ -25,7 +25,7 @@ const KEY = 'auxwars:theme';
  * --stage-black there and these constants together, or the status bar tint
  * silently drifts from the ground colour it's supposed to match.
  */
-export const STAGE_BLACK_META = '#05050a';
+export const STAGE_BLACK_META = '#160f26';
 
 /** Mirrors --stage-black's value under :root[data-theme='light']. */
 export const STAGE_BLACK_META_LIGHT = '#f4f4f7';

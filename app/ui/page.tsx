@@ -30,7 +30,7 @@ export default function UiProof() {
           color: 'var(--neon-pink)',
         }}
       >
-        INDUSTRY GRAMMAR · AUXWARS GROUND
+        INDUSTRY GRAMMAR · BEATZ GROUND
       </div>
       <h1
         style={{

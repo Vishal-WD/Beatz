@@ -6,8 +6,13 @@
  */
 
 :root {
-  --stage-black: #05050a;
-  --booth-panel: #0e0e18;
+  /* Named "black" historically; it is a deep plum now. The name is kept
+     because every consumer references the token, not the colour, and
+     renaming it would touch dozens of files to say the same thing.
+     The panel sits 1.08:1 off the stage -- the same lift the old
+     #05050a/#0e0e18 pair had, so surfaces separate exactly as before. */
+  --stage-black: #160f26;
+  --booth-panel: #1f1633;
 
   --neon-pink: #ff2e88;
   --neon-cyan: #4ce3ff;

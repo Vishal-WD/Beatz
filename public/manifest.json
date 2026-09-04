@@ -1,12 +1,12 @@
 {
-  "name": "AuxWars",
-  "short_name": "AuxWars",
+  "name": "Beatz",
+  "short_name": "Beatz",
   "description": "Hold the throne. Keep the vibe. Lose the aux.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#05050a",
-  "theme_color": "#05050a",
+  "background_color": "#160f26",
+  "theme_color": "#160f26",
   "categories": ["games", "music", "social"],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }

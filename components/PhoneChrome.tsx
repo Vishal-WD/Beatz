@@ -8,9 +8,8 @@ import { usePathname } from 'next/navigation';
 import { useSound } from '@/lib/useSound';
 import { TabIcon } from '@/components/ui/TabIcon';
 
-const TABS = [
+export const TABS = [
   { href: '/deck',    label: 'ROOM',  icon: 'room'  as const },
-  { href: '/feed',    label: 'FEED',  icon: 'feed'  as const },
   { href: '/packs',   label: 'SHOP',  icon: 'shop'  as const },
   { href: '/chart',   label: 'CHART', icon: 'chart' as const },
   { href: '/profile', label: 'YOU',   icon: 'you'   as const },

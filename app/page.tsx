@@ -55,7 +55,7 @@ export default function Home() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            AuxWars
+            Beatz
           </h1>
         </div>
 

@@ -3,7 +3,7 @@ import { STAGE_BLACK_META } from '@/lib/useTheme';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AuxWars',
+  title: 'Beatz',
   description: 'Hold the throne. Keep the vibe. Lose the aux.',
 };
 

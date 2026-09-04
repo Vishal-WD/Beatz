@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TabBar } from './PhoneChrome';
+import { TabBar, TABS } from './PhoneChrome';
 
 /*
   The active tab is conveyed visually by colour + a top border, which a
@@ -19,7 +19,10 @@ describe('TabBar', () => {
     render(<TabBar />);
 
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(5);
+    // Derived from TABS rather than hardcoded: this asserted 5 and broke
+    // when FEED was removed, which is noise -- the tab COUNT is a product
+    // decision, while "exactly one is current" is the invariant.
+    expect(links).toHaveLength(TABS.length);
 
     const current = links.filter((l) => l.getAttribute('aria-current') === 'page');
     expect(current).toHaveLength(1);

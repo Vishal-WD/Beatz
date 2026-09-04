@@ -1,15 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Beatz">
+  <!--
+    Beatz mark: a crown whose points ARE the waveform.
+
+    The previous icon stacked a crown on top of an aux plug — two symbols
+    sharing no geometry, which reads as a sticker rather than a mark at
+    32px. Here the equaliser bars rise out of the crown band, so the two
+    ideas are one shape: the room's reaction (the bars) is what makes the
+    throne (the band). That is the core loop in a single silhouette.
+
+    The bars OVERLAP the band rather than floating above it, so at small
+    sizes the mark stays one connected object instead of separating into a
+    row of sticks and a line.
+
+    Colours are the three app neons in the same order as the wordmark
+    gradient, so icon and title read as one brand.
+  -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="beat" x1="0" y1="1" x2="1" y2="0">
       <stop offset="0" stop-color="#ff2e88"/>
-      <stop offset="45%" stop-color="#7b2bff"/>
+      <stop offset="50%" stop-color="#7b2bff"/>
       <stop offset="100%" stop-color="#4ce3ff"/>
     </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".26"/>
+      <stop offset="70%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="#05050a"/>
-  <!-- Crown over an aux plug: the throne and the cable, the two halves of the game -->
-  <path d="M136 232 L136 168 L196 212 L256 140 L316 212 L376 168 L376 232 Z" fill="url(#g)"/>
-  <rect x="136" y="252" width="240" height="26" rx="13" fill="url(#g)"/>
-  <rect x="238" y="296" width="36" height="86" rx="18" fill="#4ce3ff"/>
-  <rect x="246" y="382" width="20" height="46" rx="10" fill="#ff2e88"/>
+
+  <!-- Stage plum, matching --stage-black so the icon sits on the app's own ground -->
+  <rect width="512" height="512" rx="112" fill="#160f26"/>
+
+  <!--
+    Bars and band drawn as ONE group so they merge into a single silhouette.
+    Heights are deliberately uneven: a symmetrical crown reads as heraldry,
+    an uneven one reads as sound.
+  -->
+  <g fill="url(#beat)">
+    <rect x="106" y="256" width="44" height="150" rx="22"/>
+    <rect x="166" y="186" width="44" height="220" rx="22"/>
+    <rect x="226" y="118" width="44" height="288" rx="22"/>
+    <rect x="286" y="168" width="44" height="238" rx="22"/>
+    <rect x="346" y="238" width="44" height="168" rx="22"/>
+    <!-- The band overlaps the bars' feet, tying them into one object -->
+    <rect x="96" y="372" width="304" height="42" rx="21"/>
+  </g>
+
+  <!-- Crown jewels on the two tallest peaks — the Peak Moment, in miniature -->
+  <circle cx="248" cy="92" r="19" fill="#ffd84d"/>
+  <circle cx="188" cy="160" r="12" fill="#7dffc3"/>
+
+  <!-- One highlight for depth at large sizes; it simply fades out at 32px
+       rather than turning the band to mud -->
+  <rect x="96" y="372" width="304" height="42" rx="21" fill="url(#sheen)"/>
 </svg>

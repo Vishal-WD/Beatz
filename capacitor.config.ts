@@ -6,12 +6,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.beatz.auxwars',
-  appName: 'AuxWars',
+  appName: 'Beatz',
   webDir: 'out',
 
   android: {
     // Stage black (CLAUDE.md design tokens) — avoids a white flash on launch.
-    backgroundColor: '#05050a',
+    backgroundColor: '#160f26',
     // Release builds must not ship a debuggable WebView.
     webContentsDebuggingEnabled: process.env.NODE_ENV !== 'production',
   },
