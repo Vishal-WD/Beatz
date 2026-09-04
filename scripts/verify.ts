@@ -13,10 +13,60 @@
 import { deriveStats, rarityForP, supplyTotal, decayRateFor, startingVibeFor,
   compositePopularity, HYPE_STAMINA_MIN, HYPE_STAMINA_MAX } from '../lib/stats';
 import { RARITY } from '../lib/rarity';
-import { GENERATED_CARDS } from '../lib/generated-cards';
 import { buildChart } from '../lib/domain/chart';
-import { ALL_CARDS, STARTING_HAND } from '../lib/seed-data';
 import type { Rarity } from '../types/cards';
+
+
+/*
+  The card pool comes from the database, not from lib/seed-data.ts.
+
+  These invariants (stat bounds, supply, the licensing gate) are about the
+  cards the app actually serves. Checking them against a ten-card design
+  fixture meant they passed while saying nothing about the 60 real cards
+  players pull, and the fixture was hand-written to satisfy them anyway.
+*/
+interface PoolCard {
+  id: string; title: string; subtitle: string; rarity: Rarity;
+  hype: number; stamina: number;
+  supplyTotal: number; supplyRemaining: number;
+  artworkUrl: string | null; artworkSource: string | null;
+  mbRecordingId: string | null; youtubeVideoId: string | null;
+  previewUrl: string | null;
+  jamendoTrackId: string | null; licenseVariant: string | null;
+  audioAnalyzable: boolean; playbackMode: string | null;
+}
+
+async function loadPool(): Promise<PoolCard[] | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+
+  const res = await fetch(`${url}/rest/v1/cards?select=*`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  });
+  if (!res.ok) return null;
+
+  const rows = (await res.json()) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    id: String(r.id),
+    title: String(r.title),
+    subtitle: String(r.subtitle ?? ''),
+    rarity: r.rarity as Rarity,
+    hype: Number(r.hype),
+    stamina: Number(r.stamina),
+    supplyTotal: Number(r.supply_total),
+    supplyRemaining: Number(r.supply_remaining),
+    artworkUrl: (r.artwork_url as string) ?? null,
+    artworkSource: (r.artwork_source as string) ?? null,
+    mbRecordingId: (r.mb_recording_id as string) ?? null,
+    youtubeVideoId: (r.youtube_video_id as string) ?? null,
+    previewUrl: (r.preview_url as string) ?? null,
+    jamendoTrackId: (r.jamendo_track_id as string) ?? null,
+    licenseVariant: (r.license_variant as string) ?? null,
+    audioAnalyzable: Boolean(r.audio_analyzable),
+    playbackMode: (r.playback_mode as string) ?? null,
+  }));
+}
 
 let failures = 0;
 let checks = 0;
@@ -102,84 +152,102 @@ check('better cards hold longer than worse ones',
   legendarySecs > commonSecs);
 
 // ---------------------------------------------------------------------------
-section('CARD POOL INTEGRITY');
+function cardPoolChecks(pool: PoolCard[]) {
+  section('CARD POOL INTEGRITY');
 
-check('pool is non-empty', ALL_CARDS.length > 0, `${ALL_CARDS.length} cards`);
+  check('pool is non-empty', pool.length > 0, `${pool.length} cards`);
 
-const tiers = ALL_CARDS.reduce<Record<string, number>>((a, c) => {
-  a[c.rarity] = (a[c.rarity] ?? 0) + 1;
-  return a;
-}, {});
-check('every rarity tier is represented',
-  (['common', 'rare', 'epic', 'legendary'] as Rarity[]).every((r) => (tiers[r] ?? 0) > 0),
-  JSON.stringify(tiers));
+  const tiers = pool.reduce<Record<string, number>>((a, c) => {
+    a[c.rarity] = (a[c.rarity] ?? 0) + 1;
+    return a;
+  }, {});
+  check('every rarity tier is represented',
+    (['common', 'rare', 'epic', 'legendary'] as Rarity[]).every((r) => (tiers[r] ?? 0) > 0),
+    JSON.stringify(tiers));
 
-check('no duplicate card ids',
-  new Set(ALL_CARDS.map((c) => c.id)).size === ALL_CARDS.length);
+  check('no duplicate card ids',
+    new Set(pool.map((c) => c.id)).size === pool.length);
 
-check('no duplicate MusicBrainz recording ids',
-  new Set(ALL_CARDS.map((c) => c.mbRecordingId)).size === ALL_CARDS.length);
+  check('no duplicate MusicBrainz recording ids',
+    new Set(pool.map((c) => c.mbRecordingId)).size === pool.length);
 
-check('every card obeys the hype+stamina invariant',
-  ALL_CARDS.every((c) => c.hype + c.stamina >= HYPE_STAMINA_MIN
-    && c.hype + c.stamina <= HYPE_STAMINA_MAX),
-  ALL_CARDS.filter((c) => c.hype + c.stamina < HYPE_STAMINA_MIN
-    || c.hype + c.stamina > HYPE_STAMINA_MAX).map((c) => c.title).join(', '));
+  check('every card obeys the hype+stamina invariant',
+    pool.every((c) => c.hype + c.stamina >= HYPE_STAMINA_MIN
+      && c.hype + c.stamina <= HYPE_STAMINA_MAX),
+    pool.filter((c) => c.hype + c.stamina < HYPE_STAMINA_MIN
+      || c.hype + c.stamina > HYPE_STAMINA_MAX).map((c) => c.title).join(', '));
 
-check('stats are within 0–100',
-  ALL_CARDS.every((c) => c.hype >= 0 && c.hype <= 100 && c.stamina >= 0 && c.stamina <= 100));
+  check('stats are within 0–100',
+    pool.every((c) => c.hype >= 0 && c.hype <= 100 && c.stamina >= 0 && c.stamina <= 100));
 
-check('supply_remaining never exceeds supply_total',
-  ALL_CARDS.every((c) => c.supplyRemaining <= c.supplyTotal && c.supplyRemaining >= 0));
+  check('supply_remaining never exceeds supply_total',
+    pool.every((c) => c.supplyRemaining <= c.supplyTotal && c.supplyRemaining >= 0));
 
-// ---------------------------------------------------------------------------
-section('LICENSING GATE (docs/LICENSING_RIGHTS.md)');
+  // ---------------------------------------------------------------------------
+  section('LICENSING GATE (docs/LICENSING_RIGHTS.md)');
 
-check('audioAnalyzable ⇒ jamendo id AND licence recorded (CARD_SCHEMA §7.3)',
-  ALL_CARDS.every((c) => !c.audioAnalyzable || (c.jamendoTrackId && c.licenseVariant)),
-  ALL_CARDS.filter((c) => c.audioAnalyzable && !c.licenseVariant).map((c) => c.title).join(', '));
+  check('audioAnalyzable ⇒ jamendo id AND licence recorded (CARD_SCHEMA §7.3)',
+    pool.every((c) => !c.audioAnalyzable || (c.jamendoTrackId && c.licenseVariant)),
+    pool.filter((c) => c.audioAnalyzable && !c.licenseVariant).map((c) => c.title).join(', '));
 
-check('no card stores a non-Jamendo audio URL (DO NOT #1)',
-  ALL_CARDS.every((c) => !c.audioAnalyzable || c.playbackMode === 'jamendo_local'));
+  check('no card stores a non-Jamendo audio URL (DO NOT #1)',
+    pool.every((c) => !c.audioAnalyzable || c.playbackMode === 'jamendo_local'));
 
-check('youtube_embed cards carry a video id, or fall back cleanly',
-  ALL_CARDS.every((c) => c.playbackMode !== 'youtube_embed' || c.youtubeVideoId !== undefined));
+  check('youtube_embed cards carry a video id, or fall back cleanly',
+    pool.every((c) => c.playbackMode !== 'youtube_embed' || c.youtubeVideoId !== undefined));
 
-check('artwork comes only from approved sources',
-  ALL_CARDS.every((c) => c.artworkSource === null
-    || ['caa', 'spotify', 'itunes', 'os_sync'].includes(c.artworkSource)));
+  check('artwork comes only from approved sources',
+    pool.every((c) => c.artworkSource === null
+      || ['caa', 'spotify', 'itunes', 'os_sync'].includes(c.artworkSource)));
 
-// ---------------------------------------------------------------------------
-section('PLAYABILITY / DEMO READINESS');
+  // ---------------------------------------------------------------------------
+  section('PLAYABILITY / DEMO READINESS');
 
-const withArt = ALL_CARDS.filter((c) => c.artworkUrl).length;
-check('at least half the pool has real artwork',
-  withArt >= ALL_CARDS.length / 2, `${withArt}/${ALL_CARDS.length}`);
+  const withArt = pool.filter((c) => c.artworkUrl).length;
+  check('at least half the pool has real artwork',
+    withArt >= pool.length / 2, `${withArt}/${pool.length}`);
 
-const withAudio = ALL_CARDS.filter((c) => c.youtubeVideoId).length;
-check('at least half the pool is playable',
-  withAudio >= ALL_CARDS.length / 2, `${withAudio}/${ALL_CARDS.length}`);
+  /*
+    Playable means "this card can make a sound", and the app has two paths
+    for that: the YouTube embed and Apple's 30s preview (usePreviewAudio,
+    which is what tap-to-play in the collection uses). Counting only
+    youtubeVideoId called 50 of the 60 real cards unplayable while every one
+    of them previews fine.
 
-check('opening hand spans more than one rarity',
-  new Set(STARTING_HAND.map((c) => c.rarity)).size > 1);
+    The old check passed at 10/10 because it ran against a fixture whose ten
+    hand-written cards all carried video ids — a good example of a green
+    check that knew nothing about what players actually pull.
+  */
+  const withAudio = pool.filter((c) => c.youtubeVideoId || c.previewUrl).length;
+  check('at least half the pool is playable',
+    withAudio >= pool.length / 2, `${withAudio}/${pool.length}`);
 
-check('a legendary exists for the pack money-shot (DEMO_FALLBACKS)',
-  ALL_CARDS.some((c) => c.rarity === 'legendary'));
+  // The opening hand is chosen by rarity at runtime (the signup trigger
+  // grants 21 cards), so the invariant that matters is that the pool CAN
+  // produce a mixed hand -- a pool of one tier would make it impossible.
+  check('pool can produce a hand spanning more than one rarity',
+    new Set(pool.map((c) => c.rarity)).size > 1);
 
-// The marketplace listings this used to check were invented offer amounts
-// on a screen with no bids table behind it. The chart now ranks by real
-// scarcity instead, so the invariant worth holding is that the ranking is
-// monotonic in scarcity — a less-claimed card must never outrank a
-// more-claimed one.
-check('world chart ranks by descending scarcity',
-  (() => {
-    const chart = buildChart(ALL_CARDS.map((c) => ({
-      cardId: c.id, title: c.title, subtitle: c.subtitle, rarity: c.rarity,
-      artworkUrl: c.artworkUrl,
-      supplyTotal: c.supplyTotal, supplyRemaining: c.supplyRemaining,
-    })));
-    return chart.every((e, i) => i === 0 || chart[i - 1].scarcity >= e.scarcity);
-  })());
+  check('a legendary exists for the pack money-shot (DEMO_FALLBACKS)',
+    pool.some((c) => c.rarity === 'legendary'));
+
+  // The marketplace listings this used to check were invented offer amounts
+  // on a screen with no bids table behind it. The chart now ranks by real
+  // scarcity instead, so the invariant worth holding is that the ranking is
+  // monotonic in scarcity — a less-claimed card must never outrank a
+  // more-claimed one.
+  check('world chart ranks by descending scarcity',
+    (() => {
+      const chart = buildChart(pool.map((c) => ({
+        cardId: c.id, title: c.title, subtitle: c.subtitle, rarity: c.rarity,
+        artworkUrl: c.artworkUrl,
+        supplyTotal: c.supplyTotal, supplyRemaining: c.supplyRemaining,
+      })));
+      return chart.every((e, i) => i === 0 || chart[i - 1].scarcity >= e.scarcity);
+    })());
+
+  // ---------------------------------------------------------------------------
+}
 
 // ---------------------------------------------------------------------------
 section('SOCIAL LAYER GUARD RAILS (CLAUDE.md §1.1)');
@@ -240,6 +308,16 @@ async function socialGuardRails() {
 // plain top-level await is not available under this script's cjs transform,
 // hence the explicit main().
 async function main() {
+  const pool = await loadPool();
+  if (pool === null) {
+    section('CARD POOL INTEGRITY');
+    console.log('  – skipped (no Supabase credentials in env)');
+  } else if (pool.length === 0) {
+    check('pool is non-empty', false, 'the cards table is empty');
+  } else {
+    cardPoolChecks(pool);
+  }
+
   await socialGuardRails();
 
   console.log(`\n${'─'.repeat(52)}`);

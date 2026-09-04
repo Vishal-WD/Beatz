@@ -44,9 +44,24 @@ export default function ThroneRoom() {
     void fetchChallengerLine(dbRoom.id).then((l) => !cancelled && setLine(l));
     return () => { cancelled = true; };
   }, [dbRoom?.id]);
-  const nowPlaying = cards.find((c) => c.rarity === 'epic') ?? cards[0];
+  /*
+    An empty pool is reachable now that useCards has no fixture fallback —
+    prerendering has no database at all, which is what caught this: the old
+    `?? cards[0]` handed undefined straight to useVibe and crashed the
+    static export.
+
+    Hooks cannot be called conditionally, so useVibe still runs on neutral
+    stats and the SCREEN decides whether there is anything to show. Same
+    reasoning as the challenger line above: this is the display an audience
+    watches, so it says nothing rather than something invented.
+  */
+  const nowPlaying = cards.find((c) => c.rarity === 'epic') ?? cards[0] ?? null;
   const [peak, setPeak] = useState(false);
-  const { vibe, firePeak } = useVibe({ stamina: nowPlaying.stamina, hype: nowPlaying.hype, control: 'contested' });
+  const { vibe, firePeak } = useVibe({
+    stamina: nowPlaying?.stamina ?? 50,
+    hype: nowPlaying?.hype ?? 50,
+    control: 'contested',
+  });
   const { play } = useSound();
   const peakTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -233,13 +248,21 @@ export default function ThroneRoom() {
               LIVE FROM DESKTOP
             </span>
           </div>
-          <div style={{ font: '400 20px/1 var(--font-title)', textTransform: 'uppercase' }}>{nowPlaying.title}</div>
-          <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 5 }}>
-            {nowPlaying.subtitle}
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <NowPlaying card={nowPlaying} vibe={vibe} compact />
-          </div>
+          {nowPlaying ? (
+            <>
+              <div style={{ font: '400 20px/1 var(--font-title)', textTransform: 'uppercase' }}>{nowPlaying.title}</div>
+              <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 5 }}>
+                {nowPlaying.subtitle}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <NowPlaying card={nowPlaying} vibe={vibe} compact />
+              </div>
+            </>
+          ) : (
+            <div style={{ font: '400 9px/1.6 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-25)' }}>
+              NOTHING PLAYING YET
+            </div>
+          )}
         </div>
       </div>
 

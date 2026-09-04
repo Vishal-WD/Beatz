@@ -27,7 +27,7 @@ import {
 import { startingVibeFor } from '../lib/stats';
 import { tickReign, type ReignState } from '../lib/domain/reign';
 import { controlModelFor } from '../lib/domain/formats';
-import { openReign, closeReign, persistenceEnabled } from './db/reigns';
+import { openReign, closeReign, persistenceEnabled, loadCards } from './db/reigns';
 import { RoomStore } from './rooms/store';
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -89,9 +89,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('card:play', ({ roomId, cardId }) => {
+  socket.on('card:play', async ({ roomId, cardId }) => {
     if (!playerId) return;
-    const result = store.playCard(roomId, playerId, cardId);
+    // Resolved against the real pool, not a fixture — see loadCards().
+    const card = (await loadCards()).get(cardId);
+    const result = store.playCard(roomId, playerId, card);
 
     if ('error' in result) {
       socket.emit('error:msg', result.error);

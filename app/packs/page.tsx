@@ -34,13 +34,24 @@ export default function PacksScreen() {
   const { cards } = useCards();
   const pack = usePacks();
 
-  // The server returns card ids; the catalogue supplies the artwork.
+  /*
+    The server returns card ids; the catalogue supplies the artwork.
+
+    A pull that the catalogue cannot resolve used to be dropped silently by
+    a .filter(Boolean), so a player who had just spent Drops saw a short
+    reveal and no explanation. That was reachable in practice: the pool was
+    seeded from a ten-card fixture keyed by `gen-000` ids while the server
+    granted uuids, so NO pull resolved and the reveal was simply empty.
+
+    The fixture is gone, but the failure mode is still possible whenever the
+    catalogue has not loaded, so it is now visible rather than silent.
+  */
   const pulled = useMemo(() => {
     if (!pack.pulls?.length) return null;
-    return pack.pulls
-      .map((p) => cards.find((c) => c.id === p.cardId))
-      .filter(Boolean);
+    return pack.pulls.map((p) => cards.find((c) => c.id === p.cardId) ?? null);
   }, [pack.pulls, cards]);
+
+  const unresolved = pulled?.filter((c) => c === null).length ?? 0;
 
   // Which pull is on screen. The reveal steps through the five cards
   // rather than showing a single fixed one.
@@ -266,7 +277,17 @@ export default function PacksScreen() {
                     color: 'var(--ink-25)',
                   }}
                 >
-                  {pack.busy ? 'OPENING…' : ''}
+                  {/*
+                    A granted card the catalogue cannot resolve is a real
+                    card the player owns — the grant is atomic and already
+                    committed server-side. Saying so beats a blank frame
+                    that reads as a card they did not get.
+                  */}
+                  {pack.busy
+                    ? 'OPENING…'
+                    : unresolved > 0
+                      ? 'CARD GRANTED · ARTWORK UNAVAILABLE'
+                      : ''}
                 </div>
               )}
             </div>

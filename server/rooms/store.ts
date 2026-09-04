@@ -11,7 +11,7 @@ import type { RoomState, Challenger, Reign, Player, RoomMode } from '../../types
 import type { FormatId } from '../../lib/domain/formats';
 import { startingVibeFor } from '../../lib/stats';
 import { avatarFor } from '../../lib/rarity';
-import { cardById } from '../../lib/seed-data';
+import type { ServerCard } from '../db/reigns';
 
 interface GraceEntry {
   timer: NodeJS.Timeout;
@@ -120,13 +120,25 @@ export class RoomStore {
     return challenger;
   }
 
+  /*
+    The card is resolved by the caller rather than looked up here.
+
+    This used to call cardById() from lib/seed-data.ts — a ten-card design
+    fixture keyed by ids like `gen-000`, while every real card id is a uuid.
+    Once the app served real cards the two pools shared no id, so every play
+    of a real card came back CARD_NOT_FOUND and multiplayer card play worked
+    only for cards that no longer existed.
+
+    Taking the card as an argument keeps this method synchronous and pure —
+    the room rules below are worth testing without a database — and puts the
+    lookup where the await already is.
+  */
   playCard(
     roomId: string,
     playerId: string,
-    cardId: string,
+    card: ServerCard | undefined,
   ): { reign: Reign } | { error: { code: string; message: string } } {
     const room = this.ensure(roomId);
-    const card = cardById(cardId);
 
     if (!card) {
       return { error: { code: 'CARD_NOT_FOUND', message: 'That card does not exist.' } };

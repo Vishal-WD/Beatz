@@ -119,3 +119,72 @@ export async function closeReign(
     console.warn('[beatz:db] closeReign threw:', (e as Error).message);
   }
 }
+
+/**
+ * The playable card pool, by id.
+ *
+ * `playCard` used to validate against `cardById` from lib/seed-data.ts — a
+ * ten-card design fixture whose ids look like `gen-000`, while every real
+ * card id is a uuid. The two pools shared no id at all, so once the app read
+ * real cards, EVERY play of a real card was rejected as CARD_NOT_FOUND.
+ * Multiplayer card play only worked for cards that no longer existed.
+ *
+ * Loaded once and cached: the pool changes when someone runs a seed script,
+ * not during a night, and `playCard` is on the hot path of every tap.
+ */
+export interface ServerCard {
+  id: string;
+  kind: 'song';
+  title: string;
+  subtitle: string;
+  hype: number;
+  stamina: number;
+}
+
+let cardCache: Map<string, ServerCard> | null = null;
+let cardLoad: Promise<Map<string, ServerCard>> | null = null;
+
+export async function loadCards(): Promise<Map<string, ServerCard>> {
+  if (cardCache) return cardCache;
+  if (cardLoad) return cardLoad;
+
+  cardLoad = (async () => {
+    const c = db();
+    if (!c) return new Map<string, ServerCard>();
+
+    const { data, error } = await c
+      .from('cards')
+      .select('id, title, subtitle, hype, stamina');
+
+    if (error || !data) {
+      console.warn('[db] loadCards:', error?.message ?? 'no rows');
+      // Do NOT cache a failure: a transient outage must not leave the
+      // server permanently unable to accept a play.
+      cardLoad = null;
+      return new Map<string, ServerCard>();
+    }
+
+    cardCache = new Map(
+      data.map((r) => [
+        r.id as string,
+        {
+          id: r.id as string,
+          kind: 'song' as const,
+          title: r.title as string,
+          subtitle: r.subtitle as string,
+          hype: r.hype as number,
+          stamina: r.stamina as number,
+        },
+      ]),
+    );
+    return cardCache;
+  })();
+
+  return cardLoad;
+}
+
+/** Test seam: forget the cached pool so a re-seed can be picked up. */
+export function resetCardCache(): void {
+  cardCache = null;
+  cardLoad = null;
+}
