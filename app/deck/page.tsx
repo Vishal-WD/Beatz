@@ -192,6 +192,18 @@ export default function DeckScreen() {
     displayName: profile.display_name,
   });
 
+  /*
+    How many people are actually here, from the socket's live player list.
+    Used instead of the challenger-line length for the SOLO PRACTICE label:
+    an empty QUEUE is not an empty ROOM, and conflating the two is what made
+    a room of four read as solo practice.
+
+    Falls back to 1 (you) when the socket has not reported yet, so the label
+    never claims a crowd it cannot see.
+  */
+  const roomPeople = Math.max(room?.players?.length ?? 1, 1);
+  const alone = roomPeople <= 1;
+
   const control = controlModelFor(dbRoom?.format ?? DEFAULT_FORMAT);
   /*
     canDethrone already returns false for spectator/delegated rooms
@@ -385,7 +397,11 @@ export default function DeckScreen() {
 
   return (
     <PhoneShell>
-      <div style={{ padding: '4px 16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* The card rail is the last thing on this screen and it sat flush
+          against the tab bar, so the bottom row of every card was clipped.
+          The extra bottom padding is the rail's breathing room, not the
+          page's. */}
+      <div style={{ padding: '4px 16px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Player header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
@@ -636,9 +652,19 @@ export default function DeckScreen() {
               PRACTICE / LIVE ROOM label instead of implying one.
             */}
             <span>
-              {dethroneable
-                ? line.length > 0 ? `${line.length} IN LINE` : 'SOLO PRACTICE'
-                : mode === 'live' ? 'LIVE ROOM' : 'SOLO PRACTICE'}
+              {/*
+                SOLO PRACTICE means you are genuinely alone -- CLAUDE.md §6
+                calls it a labelled mode, never a silent fallback. It used to
+                print whenever the CHALLENGER LINE was empty, so a live room
+                with four people in it read as SOLO PRACTICE the moment
+                nobody was queued, directly next to a LIVE ROOM badge saying
+                the opposite. The room's player count is the honest signal.
+              */}
+              {alone
+                ? 'SOLO PRACTICE'
+                : dethroneable && line.length > 0
+                  ? `${line.length} IN LINE`
+                  : `${roomPeople} IN THE ROOM`}
             </span>
             <span>YOUR PULL {holdPct}%</span>
           </div>
@@ -647,8 +673,11 @@ export default function DeckScreen() {
         {/* Hand — fanned, tap to play */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            {/* The collection count already sits in the room header above;
+                repeating it here as "YOUR HAND" said the same number twice
+                under two different names. */}
             <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)' }}>
-              YOUR HAND · {hand.length}
+              YOUR HAND
             </div>
             {/* A refused play is explained, never silently dropped. */}
             {refusal && (

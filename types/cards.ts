@@ -16,7 +16,22 @@ export type ArtistRole = 'primary' | 'featured' | 'remixer' | 'producer';
  * what 50 of 60 rows used to claim because 'youtube_embed' was the column
  * default and nothing ever set it deliberately.
  */
-export type PlaybackMode = 'youtube_embed' | 'apple_preview' | 'spotify_handoff' | 'jamendo_local';
+export type PlaybackMode =
+  | 'youtube_embed'
+  | 'apple_preview'
+  | 'spotify_handoff'
+  | 'jamendo_local'
+  /**
+   * Full-length stream from Audius, by track id, via
+   * /v1/tracks/<id>/stream. The only full-length path in the pool that does
+   * not need an embed: Apple's preview stops at 30s and only 10 of the 60
+   * chart cards ever resolved a YouTube video id.
+   *
+   * Artists opt in to third-party API access under the Open Music License.
+   * Only the id is stored; audio streams from an Audius content node and is
+   * never downloaded (CLAUDE.md §5). Cross-origin, so NOT audioAnalyzable.
+   */
+  | 'audius_stream';
 export type ArtworkSource = 'caa' | 'spotify' | 'itunes' | 'os_sync' | null;
 
 export interface CardDisplayBase {
@@ -63,6 +78,9 @@ export interface SongCard extends CardDisplayBase {
   deezerTrackId: string | null;
   youtubeVideoId: string | null;
   jamendoTrackId: string | null;
+  /** Audius track id — streamed full-length, never downloaded. Optional: the
+   *  hand-curated seed fixtures predate this source. */
+  audiusTrackId?: string | null;
 
   /**
    * Apple's own 30-second preview stream. CORS-open, so unlike the YouTube

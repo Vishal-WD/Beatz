@@ -32,6 +32,7 @@ interface PoolCard {
   mbRecordingId: string | null; youtubeVideoId: string | null;
   previewUrl: string | null;
   jamendoTrackId: string | null; licenseVariant: string | null;
+  audiusTrackId: string | null;
   audioAnalyzable: boolean; playbackMode: string | null;
 }
 
@@ -61,6 +62,7 @@ async function loadPool(): Promise<PoolCard[] | null> {
     youtubeVideoId: (r.youtube_video_id as string) ?? null,
     previewUrl: (r.preview_url as string) ?? null,
     jamendoTrackId: (r.jamendo_track_id as string) ?? null,
+    audiusTrackId: (r.audius_track_id as string) ?? null,
     licenseVariant: (r.license_variant as string) ?? null,
     audioAnalyzable: Boolean(r.audio_analyzable),
     playbackMode: (r.playback_mode as string) ?? null,
@@ -198,16 +200,22 @@ function cardPoolChecks(pool: PoolCard[]) {
     at all. A card that names a playback path it cannot perform is not
     playable, so the check now demands the id actually be there.
   */
+  const canPlay = (c: PoolCard): boolean =>
+    c.playbackMode === 'youtube_embed'
+      ? Boolean(c.youtubeVideoId)
+      : c.playbackMode === 'apple_preview'
+        ? Boolean(c.previewUrl)
+        : c.playbackMode === 'audius_stream'
+          // Audius streams by track id; there is no stored URL to fall back
+          // on, so a null id is a card that cannot make a sound at all.
+          ? Boolean(c.audiusTrackId)
+          : c.playbackMode === 'jamendo_local'
+            ? Boolean(c.jamendoTrackId)
+            : true;
+
   check('every card can perform the playback mode it declares',
-    pool.every((c) =>
-      c.playbackMode === 'youtube_embed'
-        ? Boolean(c.youtubeVideoId)
-        : c.playbackMode === 'apple_preview'
-          ? Boolean(c.previewUrl)
-          : true),
-    pool.filter((c) =>
-      (c.playbackMode === 'youtube_embed' && !c.youtubeVideoId) ||
-      (c.playbackMode === 'apple_preview' && !c.previewUrl))
+    pool.every(canPlay),
+    pool.filter((c) => !canPlay(c))
       .map((c) => `${c.title} (${c.playbackMode})`).join(', '));
 
   check('every card has artwork',
@@ -235,10 +243,26 @@ function cardPoolChecks(pool: PoolCard[]) {
     The old check passed at 10/10 because it ran against a fixture whose ten
     hand-written cards all carried video ids — a good example of a green
     check that knew nothing about what players actually pull.
+
+    Audius added a third path, and it is the only FULL-LENGTH one that needs
+    no embed. It stores a track id rather than a URL, so counting URLs alone
+    would call the 30 most playable cards in the pool unplayable — the same
+    shape of mistake as the two above, one source later.
   */
-  const withAudio = pool.filter((c) => c.youtubeVideoId || c.previewUrl).length;
+  const withAudio = pool.filter(
+    (c) => c.youtubeVideoId || c.previewUrl || c.audiusTrackId,
+  ).length;
   check('at least half the pool is playable',
     withAudio >= pool.length / 2, `${withAudio}/${pool.length}`);
+
+  // Full-length playback is what the demo actually needs: a 30s preview cuts
+  // out mid-reign, and a reign can run ~37s. Audius is the only source in the
+  // pool that provides it without an embed.
+  const fullLength = pool.filter(
+    (c) => c.audiusTrackId || c.youtubeVideoId,
+  ).length;
+  check('the pool has full-length playback, not only 30s previews',
+    fullLength > 0, `${fullLength}/${pool.length} full-length`);
 
   // The opening hand is chosen by rarity at runtime (the signup trigger
   // grants 21 cards), so the invariant that matters is that the pool CAN
