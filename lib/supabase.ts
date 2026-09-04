@@ -20,6 +20,7 @@ import type { ChartRow } from './domain/chart';
 import type { FeedSources } from './domain/activity';
 import type { PackTier } from './domain/packs';
 import type { MicPerson, Nomination } from './domain/mic';
+import type { FeedTile } from './domain/collage';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -587,6 +588,78 @@ export async function fetchEventCounts(): Promise<Map<string, number>> {
   const { data } = await db.from('event_counts').select('*');
   for (const row of data ?? []) counts.set(row.event_id, row.going_count ?? 0);
   return counts;
+}
+
+/**
+ * Events for the feed, each with the artwork of cards played in its room.
+ *
+ * The join is events -> rooms -> reigns -> cards: a reign records which
+ * card was played in which room, and an event names the room it opens
+ * into. An event whose room has seen no reigns comes back with an empty
+ * `artwork` array and the tile falls back to its poster gradient.
+ *
+ * `rooms(format)` is read alongside because the tile labels the night by
+ * its control model, and `events.kind` is a different enum — a listing
+ * category, not a format. Collapsing the two is the §1.1 drift.
+ */
+export async function fetchFeedTiles(): Promise<FeedTile[] | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  const { data, error } = await db
+    .from('events')
+    .select('id, slug, title, tagline, status, starts_at, poster_gradient, room_id, rooms(format)')
+    .in('status', ['scheduled', 'live'])
+    .order('starts_at');
+
+  if (error) {
+    console.warn('[supabase] fetchFeedTiles:', error.message);
+    return null;
+  }
+  const events = data ?? [];
+  if (events.length === 0) return [];
+
+  // One query for every room's played artwork, rather than one per event.
+  const roomIds = events.map((e) => e.room_id).filter(Boolean);
+  const { data: plays } = await db
+    .from('reigns')
+    .select('room_id, cards(artwork_url)')
+    .in('room_id', roomIds)
+    .order('started_at', { ascending: false })
+    .limit(200);
+
+  const byRoom = new Map<string, string[]>();
+  for (const p of plays ?? []) {
+    const row = p as unknown as {
+      room_id: string;
+      cards: { artwork_url: string | null } | { artwork_url: string | null }[] | null;
+    };
+    const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+    if (!card?.artwork_url) continue;
+    const list = byRoom.get(row.room_id) ?? [];
+    if (list.length < 8) list.push(card.artwork_url);
+    byRoom.set(row.room_id, list);
+  }
+
+  return events.map((e) => {
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const row = e as unknown as {
+      rooms: { format: string } | { format: string }[] | null;
+    };
+    const room = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
+    return {
+      eventId: e.id,
+      slug: e.slug,
+      title: e.title,
+      tagline: e.tagline,
+      status: e.status,
+      startsAt: e.starts_at,
+      posterGradient: e.poster_gradient,
+      format: room?.format ?? null,
+      artwork: byRoom.get(e.room_id) ?? [],
+    };
+  });
 }
 
 /**
