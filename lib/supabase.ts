@@ -16,6 +16,11 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { ChartRow } from './domain/chart';
+import type { FeedSources } from './domain/activity';
+import type { PackTier } from './domain/packs';
+import type { MicPerson, Nomination } from './domain/mic';
+import type { FeedTile } from './domain/collage';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -87,6 +92,7 @@ export interface DbProfile {
   tier: string;
   season_badge: string | null;
   drops: number;
+  onboarded_at: string | null;
   total_reigns_won: number;
   peak_vibe: number;
   challenger_wins: number;
@@ -103,6 +109,16 @@ export interface DbRoom {
   solo_practice: boolean;
   is_open: boolean;
   updated_at: string;
+  /** Which of the six formats this room runs (CLAUDE.md §1.1). */
+  format: 'concert' | 'fest' | 'clubbing' | 'night_party' | 'disco' | 'private_party';
+  /** Who may enter. Independent of `mode`, which is what may be played. */
+  visibility: 'open' | 'guest_list';
+  /**
+   * Which mic mode a Concert or Fest runs. NULL for every other format —
+   * they have no mic concept, and a default would make "no mic" and
+   * "chose solo" indistinguishable (lib/domain/mic.ts).
+   */
+  mic_mode: 'solo' | 'vote_song' | 'setlist' | null;
 }
 
 export interface DbEvent {
@@ -129,6 +145,373 @@ export interface DbEvent {
 // missing or unreachable backend leaves the app on seeded data instead of
 // white-screening.
 // ---------------------------------------------------------------------------
+
+/**
+ * Mints a Legendary for a live Peak Moment. Returns the card id, or null
+ * when this reign has already minted.
+ *
+ * CLAUDE.md §3 allows exactly two legendary paths and this is the second.
+ * The reign row itself is the guard — one mint per reign — so a vibe parked
+ * at 100 cannot farm them.
+ */
+export async function mintPeakMoment(reignId: string): Promise<string | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data, error } = await db.rpc('mint_peak_moment', {
+    p_user: auth.user.id,
+    p_reign: reignId,
+  });
+  if (error) {
+    console.warn('[supabase] mintPeakMoment:', error.message);
+    return null;
+  }
+  return (data as string) ?? null;
+}
+
+/** Records that this player has seen the welcome. */
+export async function markOnboarded(): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db
+    .from('profiles')
+    .update({ onboarded_at: new Date().toISOString() })
+    .eq('id', auth.user.id);
+  return !error;
+}
+
+/**
+ * The handle is generated at signup and stays read-only — other players may
+ * already know it. display_name is the only identity field a player can
+ * change themselves.
+ */
+export async function updateDisplayName(name: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db
+    .from('profiles')
+    .update({ display_name: name })
+    .eq('id', auth.user.id);
+  return !error;
+}
+
+/**
+ * Rows for the world chart. Scarcity is derived in lib/domain/chart.ts —
+ * this only fetches what the database already tracks.
+ */
+export async function fetchChartRows(): Promise<ChartRow[] | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data, error } = await db
+    .from('cards')
+    .select('id, title, subtitle, rarity, artwork_url, supply_total, supply_remaining');
+  if (error) {
+    console.warn('[supabase] fetchChartRows:', error.message);
+    return null;
+  }
+  return (data ?? []).map((c) => ({
+    cardId: c.id,
+    title: c.title,
+    subtitle: c.subtitle,
+    rarity: c.rarity,
+    artworkUrl: c.artwork_url,
+    supplyTotal: c.supply_total,
+    supplyRemaining: c.supply_remaining,
+  }));
+}
+
+/**
+ * The cards this player has pinned to their showcase.
+ *
+ * The profile screen used to pin `ALL_CARDS.slice(0, 4)` — the first four
+ * cards of the global catalogue, identical for every player and unrelated
+ * to anything they owned. The pinned_cards table has existed all along.
+ *
+ * Reads are public (a showcase is meant to be seen); writes are RLS-scoped
+ * to the owner.
+ */
+export async function fetchPinnedCards(ownerId: string): Promise<DbCard[]> {
+  const db = supabase();
+  if (!db || !ownerId) return [];
+  const { data, error } = await db
+    .from('pinned_cards')
+    .select('position, card_ownership(cards(*))')
+    .eq('owner_id', ownerId)
+    .order('position');
+  if (error) {
+    console.warn('[supabase] fetchPinnedCards:', error.message);
+    return [];
+  }
+  return (data ?? [])
+    .map((row) => {
+      // postgrest types embedded rows as arrays; to-one relations arrive
+      // as single objects at runtime. Accept either, at both levels.
+      const r = row as unknown as {
+        card_ownership: { cards: DbCard | DbCard[] | null } | { cards: DbCard | DbCard[] | null }[] | null;
+      };
+      const own = Array.isArray(r.card_ownership) ? r.card_ownership[0] : r.card_ownership;
+      const card = own && (Array.isArray(own.cards) ? own.cards[0] : own.cards);
+      return card ?? null;
+    })
+    .filter(Boolean) as DbCard[];
+}
+
+/** Pin or unpin one owned copy. Position is its slot in the showcase. */
+export async function setPinned(
+  ownershipId: string,
+  position: number | null,
+): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+
+  if (position === null) {
+    const { error } = await db
+      .from('pinned_cards')
+      .delete()
+      .match({ owner_id: auth.user.id, ownership_id: ownershipId });
+    return !error;
+  }
+  const { error } = await db
+    .from('pinned_cards')
+    .upsert({ owner_id: auth.user.id, ownership_id: ownershipId, position });
+  return !error;
+}
+
+export interface LinePlayer {
+  playerId: string;
+  position: number;
+  initials: string;
+  displayName: string;
+}
+
+/**
+ * The challenger line for a room, resolved to displayable players.
+ *
+ * The Throne Room screen rendered a fixture of invented initials (DR, SV,
+ * ET, JU) as though those people were queued. That screen is the 1280x720
+ * shared display an audience watches, so fabricated players are worse there
+ * than anywhere else in the app.
+ *
+ * Takes the room's UUID, not its slug: the socket keys rooms by slug while
+ * the database keys them by id, and passing the wrong one silently matches
+ * no rows.
+ */
+export async function fetchChallengerLine(roomUuid: string): Promise<LinePlayer[]> {
+  const db = supabase();
+  if (!db || !roomUuid) return [];
+  const { data, error } = await db
+    .from('challengers')
+    .select('player_id, position, profiles(initials, display_name)')
+    .eq('room_id', roomUuid)
+    .order('position');
+  if (error) {
+    console.warn('[supabase] fetchChallengerLine:', error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => {
+    const row = r as unknown as {
+      player_id: string;
+      position: number;
+      profiles: { initials: string; display_name: string } | { initials: string; display_name: string }[] | null;
+    };
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const prof = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return {
+      playerId: row.player_id,
+      position: row.position,
+      initials: prof?.initials ?? '??',
+      displayName: prof?.display_name ?? 'Challenger',
+    };
+  });
+}
+
+/**
+ * Everything the room needs to render its mic state in one round trip.
+ *
+ * Takes the room's UUID, not its slug: the socket keys rooms by slug while
+ * the database keys them by id, and passing the wrong one silently matches
+ * no rows.
+ */
+export async function fetchMicState(roomUuid: string): Promise<{
+  people: MicPerson[];
+  holderId: string | null;
+  nominations: Nomination[];
+  /**
+   * Pending step-in requests: candidate id -> the player ids who voted for
+   * them. Only votes from OTHER mic people count toward a handover, and the
+   * server (pass_mic) owns that rule — this is for display, so the panel can
+   * show how close a request is instead of a bare "requested".
+   */
+  stepIns: Record<string, string[]>;
+}> {
+  const empty = { people: [], holderId: null, nominations: [], stepIns: {} };
+  const db = supabase();
+  if (!db || !roomUuid) return empty;
+
+  const [peopleRes, nomRes, stepInRes] = await Promise.all([
+    db.from('mic_people')
+      .select('player_id, is_holder, profiles(display_name)')
+      .eq('room_id', roomUuid),
+    db.from('nominations')
+      .select('id, player_id, card_id, nomination_votes(player_id)')
+      .eq('room_id', roomUuid)
+      .is('played_at', null),
+    db.from('step_in_votes')
+      .select('candidate_id, voter_id')
+      .eq('room_id', roomUuid),
+  ]);
+
+  if (peopleRes.error || nomRes.error || stepInRes.error) {
+    console.warn('[supabase] fetchMicState:',
+      peopleRes.error?.message ?? nomRes.error?.message ?? stepInRes.error?.message);
+    return empty;
+  }
+
+  const people: MicPerson[] = (peopleRes.data ?? []).map((r) => {
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const row = r as unknown as {
+      player_id: string;
+      is_holder: boolean;
+      profiles: { display_name: string } | { display_name: string }[] | null;
+    };
+    const prof = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return { playerId: row.player_id, displayName: prof?.display_name ?? 'Performer' };
+  });
+
+  const holderRow = (peopleRes.data ?? []).find(
+    (r) => (r as unknown as { is_holder: boolean }).is_holder,
+  ) as unknown as { player_id: string } | undefined;
+
+  const nominations: Nomination[] = (nomRes.data ?? []).map((r) => {
+    const row = r as unknown as {
+      id: string; player_id: string; card_id: string;
+      nomination_votes: { player_id: string }[] | null;
+    };
+    return {
+      id: row.id,
+      playerId: row.player_id,
+      cardId: row.card_id,
+      votes: (row.nomination_votes ?? []).map((v) => v.player_id),
+    };
+  });
+
+  const stepIns: Record<string, string[]> = {};
+  for (const r of stepInRes.data ?? []) {
+    const row = r as unknown as { candidate_id: string; voter_id: string };
+    (stepIns[row.candidate_id] ??= []).push(row.voter_id);
+  }
+
+  return { people, holderId: holderRow?.player_id ?? null, nominations, stepIns };
+}
+
+/** Offers one of your own cards for the room to vote on. */
+export async function nominateCard(roomUuid: string, cardId: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db.from('nominations')
+    .insert({ room_id: roomUuid, player_id: auth.user.id, card_id: cardId });
+  return !error;
+}
+
+/** Casts or withdraws your vote. The primary key makes a double vote a no-op. */
+export async function voteNomination(nominationId: string, on: boolean): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+
+  if (!on) {
+    const { error } = await db.from('nomination_votes')
+      .delete().match({ nomination_id: nominationId, player_id: auth.user.id });
+    return !error;
+  }
+  const { error } = await db.from('nomination_votes')
+    .upsert({ nomination_id: nominationId, player_id: auth.user.id });
+  return !error;
+}
+
+/** Votes for a candidate to take the mic. */
+export async function requestStepIn(roomUuid: string, candidateId: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db.from('step_in_votes')
+    .upsert({ room_id: roomUuid, candidate_id: candidateId, voter_id: auth.user.id });
+  return !error;
+}
+
+/** Resolves a pending step-in. Returns the new holder, or null if it did not carry. */
+export async function passMic(roomUuid: string): Promise<string | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data, error } = await db.rpc('pass_mic', { p_room: roomUuid });
+  if (error) {
+    console.warn('[supabase] passMic:', error.message);
+    return null;
+  }
+  return (data as string) ?? null;
+}
+
+export interface PackPull {
+  cardId: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  serialNumber: number;
+  downgraded: boolean;
+}
+
+/**
+ * Opens a pack: spends Drops and claims scarce supply.
+ *
+ * Both halves happen inside `open_pack`, in one transaction. A client-side
+ * read-then-write would let two devices oversell the last copy of a card and
+ * spend the same balance twice (CLAUDE.md §3), and a client that died
+ * mid-call could leave Drops debited with no cards granted.
+ *
+ * The RPC's OUT columns are prefixed `out_` because a plain `rarity` collides
+ * with `cards.rarity` inside the function's own pull query.
+ */
+export async function openPack(tier: PackTier): Promise<PackPull[] | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'No backend configured.' };
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { error: 'Sign in to open packs.' };
+
+  const { data, error } = await db.rpc('open_pack', {
+    p_user: auth.user.id,
+    p_tier: tier,
+  });
+  if (error) {
+    return {
+      error: error.message.includes('insufficient_drops')
+        ? 'Not enough Drops for that pack.'
+        : 'Could not open the pack. Try again.',
+    };
+  }
+  return (data ?? []).map((r: {
+    out_card_id: string;
+    out_rarity: PackPull['rarity'];
+    out_serial: number;
+    out_downgraded: boolean;
+  }) => ({
+    cardId: r.out_card_id,
+    rarity: r.out_rarity,
+    serialNumber: r.out_serial,
+    downgraded: r.out_downgraded,
+  }));
+}
 
 export async function fetchCards(): Promise<DbCard[] | null> {
   const db = supabase();
@@ -207,6 +590,185 @@ export async function fetchEventCounts(): Promise<Map<string, number>> {
   return counts;
 }
 
+/**
+ * Events for the feed, each with the artwork of cards played in its room.
+ *
+ * The join is events -> rooms -> reigns -> cards: a reign records which
+ * card was played in which room, and an event names the room it opens
+ * into. An event whose room has seen no reigns comes back with an empty
+ * `artwork` array and the tile falls back to its poster gradient.
+ *
+ * `rooms(format)` is read alongside because the tile labels the night by
+ * its control model, and `events.kind` is a different enum — a listing
+ * category, not a format. Collapsing the two is the §1.1 drift.
+ */
+export async function fetchFeedTiles(): Promise<FeedTile[] | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  const { data, error } = await db
+    .from('events')
+    .select('id, slug, title, tagline, status, starts_at, poster_gradient, room_id, rooms(format)')
+    .in('status', ['scheduled', 'live'])
+    .order('starts_at');
+
+  if (error) {
+    console.warn('[supabase] fetchFeedTiles:', error.message);
+    return null;
+  }
+  const events = data ?? [];
+  if (events.length === 0) return [];
+
+  // One query for every room's played artwork, rather than one per event.
+  const roomIds = events.map((e) => e.room_id).filter(Boolean);
+  const { data: plays } = await db
+    .from('reigns')
+    .select('room_id, cards(artwork_url)')
+    .in('room_id', roomIds)
+    .order('started_at', { ascending: false })
+    .limit(200);
+
+  const byRoom = new Map<string, string[]>();
+  for (const p of plays ?? []) {
+    const row = p as unknown as {
+      room_id: string;
+      cards: { artwork_url: string | null } | { artwork_url: string | null }[] | null;
+    };
+    const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+    if (!card?.artwork_url) continue;
+    const list = byRoom.get(row.room_id) ?? [];
+    if (list.length < 8) list.push(card.artwork_url);
+    byRoom.set(row.room_id, list);
+  }
+
+  return events.map((e) => {
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const row = e as unknown as {
+      rooms: { format: string } | { format: string }[] | null;
+    };
+    const room = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
+    return {
+      eventId: e.id,
+      slug: e.slug,
+      title: e.title,
+      tagline: e.tagline,
+      status: e.status,
+      startsAt: e.starts_at,
+      posterGradient: e.poster_gradient,
+      format: room?.format ?? null,
+      artwork: byRoom.get(e.room_id) ?? [],
+    };
+  });
+}
+
+/**
+ * Raw material for the activity feed (lib/domain/activity.ts).
+ *
+ * Three independent reads, shaped into FeedSources for buildFeed(). Note on
+ * `pulls`: RLS scopes card_ownership SELECT to the caller's own rows
+ * (owner_id = auth.uid()), so this only ever surfaces the signed-in
+ * player's own pulls — that's the security model, not a bug to work around.
+ *
+ * Returns null on error so the caller renders an empty state rather than a
+ * stale fixture.
+ */
+export async function fetchFeedSources(): Promise<FeedSources | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  try {
+    const [{ data: reignRows, error: reignErr }, { data: pullRows, error: pullErr }, { data: followRows, error: followErr }] =
+      await Promise.all([
+        db
+          .from('reigns')
+          .select('id, peak_vibe, ended_at, profiles(display_name), cards(title)')
+          .not('ended_at', 'is', null)
+          .order('ended_at', { ascending: false })
+          .limit(50),
+        db
+          .from('card_ownership')
+          .select('id, acquired_at, acquired_via, cards(title, rarity)')
+          .in('acquired_via', ['pack', 'peak_moment'])
+          .order('acquired_at', { ascending: false })
+          .limit(50),
+        db
+          .from('follows')
+          .select('follower_id, followee_id, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
+
+    if (reignErr || pullErr || followErr) {
+      console.warn(
+        '[supabase] fetchFeedSources:',
+        reignErr?.message ?? pullErr?.message ?? followErr?.message,
+      );
+      return null;
+    }
+
+    // Follower/followee names need a profile lookup the join above can't
+    // reach directly (follows has no FK alias set up for two profile rows).
+    const { data: auth } = await db.auth.getUser();
+    const followIds = new Set<string>();
+    for (const f of followRows ?? []) {
+      followIds.add(f.follower_id);
+      followIds.add(f.followee_id);
+    }
+    const profileRows = followIds.size
+      ? (await db.from('profiles').select('id, display_name').in('id', Array.from(followIds))).data
+      : [];
+    const nameById = new Map<string, string>((profileRows ?? []).map((p) => [p.id, p.display_name]));
+
+    const reigns = (reignRows ?? []).map((r) => {
+      const row = r as unknown as {
+        id: string;
+        peak_vibe: number;
+        ended_at: string;
+        profiles: { display_name: string } | { display_name: string }[] | null;
+        cards: { title: string } | { title: string }[] | null;
+      };
+      const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+      return {
+        id: row.id,
+        playerName: profile?.display_name ?? 'Someone',
+        cardTitle: card?.title ?? 'a card',
+        peakVibe: row.peak_vibe,
+        endedAt: row.ended_at,
+      };
+    });
+
+    const pulls = (pullRows ?? []).map((p) => {
+      const row = p as unknown as {
+        id: string;
+        acquired_at: string;
+        cards: { title: string; rarity: string } | { title: string; rarity: string }[] | null;
+      };
+      const card = Array.isArray(row.cards) ? row.cards[0] : row.cards;
+      return {
+        id: row.id,
+        playerName: auth.user ? 'You' : 'Someone',
+        cardTitle: card?.title ?? 'a card',
+        rarity: card?.rarity ?? 'common',
+        acquiredAt: row.acquired_at,
+      };
+    });
+
+    const follows = (followRows ?? []).map((f) => ({
+      id: `${f.follower_id}:${f.followee_id}:${f.created_at}`,
+      followerName: nameById.get(f.follower_id) ?? 'Someone',
+      followeeName: nameById.get(f.followee_id) ?? 'someone',
+      createdAt: f.created_at,
+    }));
+
+    return { reigns, pulls, follows };
+  } catch (e) {
+    console.warn('[supabase] fetchFeedSources:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export async function setRsvp(
   eventId: string,
   state: 'going' | 'interested' | null,
@@ -247,22 +809,6 @@ export async function toggleFollow(followeeId: string, follow: boolean): Promise
     .delete()
     .match({ follower_id: auth.user.id, followee_id: followeeId });
   return !error;
-}
-
-/**
- * Atomic Challenger Line join (CLAUDE.md §6).
- * Position comes from the database, never from an array push — two players
- * tapping join in the same tick get distinct slots.
- */
-export async function joinChallengerLine(roomId: string): Promise<number | null> {
-  const db = supabase();
-  if (!db) return null;
-  const { data, error } = await db.rpc('join_challenger_line', { p_room_id: roomId });
-  if (error) {
-    console.warn('[supabase] joinChallengerLine:', error.message);
-    return null;
-  }
-  return data as number;
 }
 
 /**

@@ -14,8 +14,8 @@ import { deriveStats, rarityForP, supplyTotal, decayRateFor, startingVibeFor,
   compositePopularity, HYPE_STAMINA_MIN, HYPE_STAMINA_MAX } from '../lib/stats';
 import { RARITY } from '../lib/rarity';
 import { GENERATED_CARDS } from '../lib/generated-cards';
-import { ALL_CARDS, LISTINGS, STARTING_HAND } from '../lib/seed-data';
-import { EVENTS } from '../lib/social-data';
+import { buildChart } from '../lib/domain/chart';
+import { ALL_CARDS, STARTING_HAND } from '../lib/seed-data';
 import type { Rarity } from '../types/cards';
 
 let failures = 0;
@@ -166,29 +166,90 @@ check('opening hand spans more than one rarity',
 check('a legendary exists for the pack money-shot (DEMO_FALLBACKS)',
   ALL_CARDS.some((c) => c.rarity === 'legendary'));
 
-check('marketplace listings are ordered by value',
-  LISTINGS.every((l, i) =>
-    i === 0 || parseInt(LISTINGS[i - 1].topOffer.replace(/,/g, ''), 10)
-      >= parseInt(l.topOffer.replace(/,/g, ''), 10)));
+// The marketplace listings this used to check were invented offer amounts
+// on a screen with no bids table behind it. The chart now ranks by real
+// scarcity instead, so the invariant worth holding is that the ranking is
+// monotonic in scarcity — a less-claimed card must never outrank a
+// more-claimed one.
+check('world chart ranks by descending scarcity',
+  (() => {
+    const chart = buildChart(ALL_CARDS.map((c) => ({
+      cardId: c.id, title: c.title, subtitle: c.subtitle, rarity: c.rarity,
+      artworkUrl: c.artworkUrl,
+      supplyTotal: c.supplyTotal, supplyRemaining: c.supplyRemaining,
+    })));
+    return chart.every((e, i) => i === 0 || chart[i - 1].scarcity >= e.scarcity);
+  })());
 
 // ---------------------------------------------------------------------------
 section('SOCIAL LAYER GUARD RAILS (CLAUDE.md §1.1)');
 
-check('every event resolves into a room',
-  EVENTS.every((e) => Boolean(e.roomId)));
+/*
+  These checked the EVENTS fixture, which could not fail: the array was
+  hand-written to satisfy them. The guard rail is about real scheduled
+  nights — "every scheduled night resolves into a room" is only meaningful
+  against the rows the app actually reads — so they now query the database.
 
-check('event capacity is never negative or below attendance',
-  EVENTS.every((e) => e.capacity === null || e.capacity >= 0));
+  Skipped rather than failed without credentials, because this script also
+  runs in places that have no .env.local and the pure-function checks above
+  are still worth running there.
+*/
+async function socialGuardRails() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    console.log('  – skipped (no Supabase credentials in env)');
+    return;
+  }
 
-check('Event Rooms exist and are distinguishable from Casual',
-  EVENTS.some((e) => e.roomMode === 'event') && EVENTS.some((e) => e.roomMode === 'casual'));
+  const res = await fetch(
+    `${url}/rest/v1/events?select=room_id,capacity,rooms(mode)`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+  );
+  if (!res.ok) {
+    check('events are readable', false, `HTTP ${res.status}`);
+    return;
+  }
+
+  const evs = (await res.json()) as {
+    room_id: string | null;
+    capacity: number | null;
+    rooms: { mode: string } | { mode: string }[] | null;
+  }[];
+
+  if (evs.length === 0) {
+    console.log('  – skipped (no events scheduled)');
+    return;
+  }
+
+  const modeOf = (e: (typeof evs)[number]) =>
+    (Array.isArray(e.rooms) ? e.rooms[0] : e.rooms)?.mode;
+
+  check('every event resolves into a room',
+    evs.every((e) => Boolean(e.room_id)));
+
+  check('event capacity is never negative',
+    evs.every((e) => e.capacity === null || e.capacity >= 0));
+
+  check('every event names a room mode (casual or event)',
+    evs.every((e) => modeOf(e) === 'casual' || modeOf(e) === 'event'));
+}
 
 // ---------------------------------------------------------------------------
-console.log(`\n${'─'.repeat(52)}`);
-if (failures === 0) {
-  console.log(`ALL ${checks} CHECKS PASSED`);
-  process.exit(0);
-} else {
-  console.log(`${failures} of ${checks} CHECKS FAILED`);
-  process.exit(1);
+// The social checks hit the network, so the summary has to wait for them. A
+// plain top-level await is not available under this script's cjs transform,
+// hence the explicit main().
+async function main() {
+  await socialGuardRails();
+
+  console.log(`\n${'─'.repeat(52)}`);
+  if (failures === 0) {
+    console.log(`ALL ${checks} CHECKS PASSED`);
+    process.exit(0);
+  } else {
+    console.log(`${failures} of ${checks} CHECKS FAILED`);
+    process.exit(1);
+  }
 }
+
+void main();

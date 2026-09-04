@@ -19,25 +19,71 @@ import type {
   ClientToServerEvents,
 } from '@/types/game';
 import { RECONNECT_GRACE_MS } from '@/types/game';
+import type { Challenger } from '@/lib/domain/challengers';
+import { supabase } from '@/lib/supabase';
 
 export type ConnectionMode = 'connecting' | 'live' | 'solo' | 'reconnecting';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 interface Options {
+  /**
+   * Slug used to key the Socket.io room ('basement-4am'). Never the same
+   * identifier as `roomUuid`: the socket server keys rooms by slug, the
+   * database keys them by UUID primary key. Do not collapse these into one
+   * value — the challenger-line query below depends on getting the UUID,
+   * not the slug, and silently "simplifying" this back to one id is exactly
+   * how the line went permanently empty before.
+   */
   roomId: string;
+  /**
+   * The room's database UUID (`rooms.id`), NOT the slug above. Needed only
+   * for querying `challengers`, whose `room_id` is a UUID foreign key.
+   * Optional and nullable because the caller (e.g. app/deck/page.tsx) may
+   * not have resolved the DbRoom row yet — while it hasn't, we skip the
+   * query rather than guess, so `line` stays an honest `[]`.
+   */
+  roomUuid?: string | null;
   playerId: string;
   displayName: string;
   /** Skip the network entirely — used by screens that only need the sim. */
   disabled?: boolean;
 }
 
-export function useRoom({ roomId, playerId, displayName, disabled = false }: Options) {
+export function useRoom({ roomId, roomUuid = null, playerId, displayName, disabled = false }: Options) {
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [mode, setMode] = useState<ConnectionMode>(disabled || !API_URL ? 'solo' : 'connecting');
   const [room, setRoom] = useState<RoomState | null>(null);
   const [serverVibe, setServerVibe] = useState<number | null>(null);
+  const [line, setLine] = useState<Challenger[]>([]);
   const graceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /*
+    The Challenger Line — who is actually queued to take the throne. This
+    used to be entirely absent from useRoom's return, so no screen could
+    ever know a real position and printed a fixed "Challenger #2" for
+    every visitor instead (CLAUDE.md §6 forbids inventing plausible state).
+  */
+  const loadLine = useCallback(async () => {
+    const db = supabase();
+    // roomUuid is the database id, not the socket slug (see Options above).
+    // Until the caller resolves it, leave the line empty instead of
+    // querying with the wrong identifier and silently matching nothing.
+    if (!db || !roomUuid) {
+      setLine([]);
+      return;
+    }
+    const { data } = await db
+      .from('challengers')
+      .select('player_id, position')
+      .eq('room_id', roomUuid)
+      .order('position');
+    setLine((data ?? []).map((r) => ({ playerId: r.player_id, position: r.position })));
+  }, [roomUuid]);
+
+  useEffect(() => {
+    void loadLine();
+  }, [loadLine]);
 
   useEffect(() => {
     if (disabled || !API_URL) {
@@ -68,8 +114,18 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
           socket.emit('room:join', { roomId, playerId, displayName });
         });
 
-        socket.on('room:state', (s) => !cancelled && setRoom(s));
+        socket.on('room:state', (s) => {
+          if (cancelled) return;
+          setRoom(s);
+          // The room row changed — the challenger line may have too.
+          void loadLine();
+        });
         socket.on('vibe:update', ({ vibe }) => !cancelled && setServerVibe(vibe));
+
+        socket.on('challenger:joined', () => {
+          if (cancelled) return;
+          void loadLine();
+        });
 
         socket.on('disconnect', () => {
           if (cancelled) return;
@@ -97,7 +153,7 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [roomId, playerId, displayName, disabled]);
+  }, [roomId, playerId, displayName, disabled, loadLine]);
 
   const playCard = useCallback(
     (cardId: string) => socketRef.current?.emit('card:play', { roomId, cardId }),
@@ -109,6 +165,11 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
     [roomId],
   );
 
+  // Joining the Challenger Line goes through this socket event only — the
+  // server assigns the atomic position (CLAUDE.md §6). There used to be a
+  // REST-side joinChallengerLine() in lib/supabase.ts too, but it passed the
+  // room slug where the RPC expected a UUID and had zero callers; it was
+  // deleted rather than fixed so nobody picks it up as a second join path.
   const joinLine = useCallback(
     () => socketRef.current?.emit('challenger:join', { roomId }),
     [roomId],
@@ -118,6 +179,7 @@ export function useRoom({ roomId, playerId, displayName, disabled = false }: Opt
     mode,
     room,
     serverVibe,
+    line,
     isLive: mode === 'live',
     playCard,
     setHolding,

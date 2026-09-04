@@ -16,7 +16,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { signIn, signUp, isSignedIn, profile, signOut } = useAuth();
+  const { signIn, signUp, isSignedIn, isLoading, profile, signOut } = useAuth();
   const { play } = useSound();
 
   const [mode, setMode] = useState<'in' | 'up'>('in');
@@ -37,10 +37,40 @@ export default function SignInScreen() {
     setBusy(false);
     if (res.ok) {
       play('throne');
-      router.push('/deck');
+      /*
+        Branch on the profile's onboarded_at, not on which action (sign in
+        vs sign up) was taken -- a player who signs up, closes the app
+        mid-welcome and returns would sign IN and skip the welcome forever
+        if this branched on the action instead of the flag.
+
+        The profile fetch that follows signIn/signUp is async, so it may
+        not have landed in this render yet. When onboarded_at isn't known
+        at this instant, send them to /welcome anyway -- it re-checks and
+        forwards an already-onboarded player straight to /deck, so guessing
+        wrong costs one redirect rather than a lost welcome.
+      */
+      router.push(profile.onboarded_at == null ? '/welcome' : '/deck');
     } else {
       setMsg(res.message);
     }
+  }
+
+  if (isLoading) {
+    return (
+      <Shell>
+        <div
+          style={{
+            padding: 'var(--sp-7)',
+            textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)',
+            letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </Shell>
+    );
   }
 
   if (isSignedIn) {
@@ -76,7 +106,7 @@ export default function SignInScreen() {
             font: '400 clamp(40px,12vw,58px)/.9 var(--font-title)',
             textTransform: 'uppercase',
             margin: '12px 0 6px',
-            background: 'linear-gradient(92deg,#fff 10%,#4ce3ff 48%,#ff2e88 88%)',
+            background: 'linear-gradient(92deg,var(--ink) 10%,var(--neon-cyan) 48%,var(--neon-pink) 88%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}
@@ -171,7 +201,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: '100%', padding: '12px 13px', borderRadius: 9,
-          background: 'var(--booth-panel)', border: '1px solid rgba(255,255,255,.14)',
+          background: 'var(--booth-panel)', border: '1px solid var(--hairline)',
           color: 'var(--ink)', font: '400 14px/1 var(--font-body)',
         }}
         {...rest}
@@ -182,20 +212,20 @@ function Field({
 
 const btnPrimary: React.CSSProperties = {
   padding: '14px 20px', borderRadius: 10, background: 'var(--neon-pink)',
-  color: '#0a0008', border: 'none', textDecoration: 'none',
+  color: 'var(--ink-on-neon)', border: 'none', textDecoration: 'none',
   font: '700 10px/1 var(--font-tele)', letterSpacing: '.16em', cursor: 'pointer',
   textAlign: 'center',
 };
 
 const btnGhost: React.CSSProperties = {
   padding: '13px 20px', borderRadius: 10, background: 'transparent',
-  border: '1px solid rgba(255,255,255,.16)', color: 'var(--ink-60)',
+  border: 'var(--border-strong)', color: 'var(--ink-60)',
   textDecoration: 'none', font: '700 10px/1 var(--font-tele)',
   letterSpacing: '.16em', cursor: 'pointer',
 };
 
 const warnBox: React.CSSProperties = {
   padding: '10px 12px', borderRadius: 8, marginBottom: 16,
-  background: 'rgba(255,216,77,.08)', border: '1px solid rgba(255,216,77,.3)',
+  background: 'var(--gold-wash)', border: '1px solid var(--gold-wash-border)',
   font: '400 9px/1.6 var(--font-tele)', letterSpacing: '.1em', color: 'var(--neon-gold)',
 };

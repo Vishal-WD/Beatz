@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { STAGE_BLACK_META } from '@/lib/useTheme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -12,7 +13,10 @@ export const viewport: Viewport = {
   // The game surface must not zoom under a two-finger gesture mid-reign.
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#05050a',
+  // <meta name="theme-color"> is generated at build time, outside the CSS
+  // cascade -- it cannot reference a custom property, so the value is
+  // mirrored from --stage-black instead of duplicated ad hoc.
+  themeColor: STAGE_BLACK_META,
   viewportFit: 'cover',
 };
 

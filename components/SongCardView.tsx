@@ -125,7 +125,7 @@ export function SongCardView({
         <div
           style={{
             flex: '1 1 52%',
-            background: 'linear-gradient(150deg,#1a1a2e,#0d0d18)',
+            background: 'var(--art-slot)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -190,7 +190,7 @@ export function SongCardView({
                 font: '700 8px/1 var(--font-tele)',
                 letterSpacing: '.1em',
                 color: 'var(--neon-gold)',
-                textShadow: '0 1px 4px rgba(0,0,0,.8)',
+                textShadow: '0 1px 4px var(--scrim)',
               }}
             >
               {card.serialNumber} OF {card.supplyTotal}
@@ -209,7 +209,7 @@ export function SongCardView({
                 letterSpacing: '.14em',
                 padding: '3px 5px',
                 borderRadius: 3,
-                background: 'rgba(0,0,0,.55)',
+                background: 'var(--scrim)',
                 color: 'var(--ink-60)',
               }}
             >
@@ -351,7 +351,7 @@ function Stat({
         style={{
           height: 2,
           borderRadius: 2,
-          background: 'rgba(255,255,255,.1)',
+          background: 'var(--hairline)',
           marginTop: 3,
           overflow: 'hidden',
         }}

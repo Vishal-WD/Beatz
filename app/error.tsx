@@ -25,8 +25,8 @@ export default function Error({
     <div
       style={{
         minHeight: '100dvh',
-        background: 'var(--stage-black, #05050a)',
-        color: 'var(--ink, #f4f2ff)',
+        background: 'var(--stage-black)',
+        color: 'var(--ink)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -38,9 +38,9 @@ export default function Error({
     >
       <div
         style={{
-          font: "400 10px/1 var(--font-tele, monospace)",
+          font: "400 10px/1 var(--font-tele)",
           letterSpacing: '.24em',
-          color: '#ff2e88',
+          color: 'var(--neon-pink)',
         }}
       >
         THE AUX CUT OUT
@@ -48,7 +48,7 @@ export default function Error({
 
       <h1
         style={{
-          font: "400 clamp(36px,10vw,58px)/.92 var(--font-title, Impact, sans-serif)",
+          font: "400 clamp(36px,10vw,58px)/.92 var(--font-title)",
           textTransform: 'uppercase',
           margin: 0,
           maxWidth: 520,
@@ -59,8 +59,8 @@ export default function Error({
 
       <p
         style={{
-          font: "400 14px/1.6 var(--font-body, system-ui, sans-serif)",
-          color: 'rgba(244,242,255,.6)',
+          font: "400 14px/1.6 var(--font-body)",
+          color: 'var(--ink-60)',
           maxWidth: 380,
           margin: 0,
         }}
@@ -75,10 +75,10 @@ export default function Error({
           style={{
             padding: '14px 22px',
             borderRadius: 10,
-            background: '#ff2e88',
-            color: '#0a0008',
+            background: 'var(--neon-pink)',
+            color: 'var(--ink-on-neon)',
             border: 'none',
-            font: "700 10px/1 var(--font-tele, monospace)",
+            font: "700 10px/1 var(--font-tele)",
             letterSpacing: '.16em',
             cursor: 'pointer',
           }}
@@ -90,10 +90,10 @@ export default function Error({
           style={{
             padding: '14px 22px',
             borderRadius: 10,
-            border: '1px solid rgba(255,255,255,.18)',
-            color: 'rgba(244,242,255,.6)',
+            border: 'var(--border-strong)',
+            color: 'var(--ink-60)',
             textDecoration: 'none',
-            font: "700 10px/1 var(--font-tele, monospace)",
+            font: "700 10px/1 var(--font-tele)",
             letterSpacing: '.16em',
           }}
         >
@@ -105,9 +105,9 @@ export default function Error({
         <div
           style={{
             marginTop: 18,
-            font: "400 9px/1 var(--font-tele, monospace)",
+            font: "400 9px/1 var(--font-tele)",
             letterSpacing: '.1em',
-            color: 'rgba(244,242,255,.25)',
+            color: 'var(--ink-25)',
           }}
         >
           REF {error.digest}

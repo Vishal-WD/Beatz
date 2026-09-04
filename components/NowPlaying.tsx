@@ -14,14 +14,25 @@ import type { SongCard } from '@/types/cards';
 import { usePlayback, fmtTime } from '@/lib/usePlayback';
 import { usePreviewAudio } from '@/lib/usePreviewAudio';
 import { RARITY, vibeColor } from '@/lib/rarity';
+import { creditFor, type CardCredit } from '@/lib/domain/shoutouts';
+import type { FormatId } from '@/lib/domain/formats';
 
 interface Props {
   card: SongCard;
   vibe?: number;
   compact?: boolean;
+  /** Room format — decides whether a shoutout is shown at all (spec §4). */
+  format?: FormatId;
+  /** Whose collection this card came from. Null when unknown. */
+  credit?: CardCredit | null;
 }
 
-export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
+export function NowPlaying({
+  card, vibe = 62, compact = false, format, credit = null,
+}: Props) {
+  // Null unless the format allows shoutouts AND an owner is known —
+  // display only, never a reward (CLAUDE.md §1.2).
+  const shoutout = format ? creditFor(format, credit) : null;
   const [expanded, setExpanded] = useState(false);
 
   /**
@@ -99,8 +110,8 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
       <div
         style={
           expanded && !usePreview
-            ? { height: 200, overflow: 'hidden', background: '#000', transition: 'height .3s ease' }
-            : { height: 0, overflow: 'hidden', background: '#000' }
+            ? { height: 200, overflow: 'hidden', background: 'var(--video-backdrop)', transition: 'height .3s ease' }
+            : { height: 0, overflow: 'hidden', background: 'var(--video-backdrop)' }
         }
       >
         <div
@@ -141,9 +152,9 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
               flexShrink: 0,
               display: 'grid',
               placeItems: 'center',
-              background: playing ? color : 'rgba(255,255,255,.06)',
-              border: `1px solid ${playing ? color : 'rgba(255,255,255,.16)'}`,
-              color: playing ? '#0a0812' : 'var(--ink)',
+              background: playing ? color : 'var(--hairline)',
+              border: playing ? `1px solid ${color}` : 'var(--border-strong)',
+              color: playing ? 'var(--ink-on-neon)' : 'var(--ink)',
               font: '400 15px/1 var(--font-body)',
               opacity: !usePreview && !ready && !error ? 0.45 : 1,
               transition: 'background .2s ease',
@@ -177,6 +188,21 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
             >
               {card.subtitle}
             </div>
+            {shoutout && (
+              <div
+                style={{
+                  font: '400 7px/1 var(--font-tele)',
+                  letterSpacing: '.12em',
+                  color: 'var(--neon-cyan)',
+                  marginTop: 5,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {shoutout.toUpperCase()}
+              </div>
+            )}
           </div>
 
           {!compact && (
@@ -202,7 +228,7 @@ export function NowPlaying({ card, vibe = 62, compact = false }: Props) {
             style={{
               height: 3,
               borderRadius: 2,
-              background: 'rgba(255,255,255,.1)',
+              background: 'var(--hairline)',
               overflow: 'hidden',
             }}
           >

@@ -6,14 +6,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSound } from '@/lib/useSound';
+import { TabIcon } from '@/components/ui/TabIcon';
 
 const TABS = [
-  { href: '/deck', label: 'DECK' },
-  { href: '/events', label: 'EVENTS' },
-  { href: '/social', label: 'SOCIAL' },
-  { href: '/packs', label: 'PACKS' },
-  { href: '/chart', label: 'CHART' },
-  { href: '/profile', label: 'YOU' },
+  { href: '/deck',    label: 'ROOM',  icon: 'room'  as const },
+  { href: '/feed',    label: 'FEED',  icon: 'feed'  as const },
+  { href: '/packs',   label: 'SHOP',  icon: 'shop'  as const },
+  { href: '/chart',   label: 'CHART', icon: 'chart' as const },
+  { href: '/profile', label: 'YOU',   icon: 'you'   as const },
 ];
 
 export function StatusBar() {
@@ -75,12 +75,18 @@ export function TabBar() {
           <Link
             key={t.href}
             href={t.href}
+            aria-current={active ? 'page' : undefined}
             style={{
               flex: 1,
-              padding: '13px 0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              // Five tabs (down from six) give each one more width, so the
+              // label no longer has to carry the tab alone at 9px — the icon
+              // above it does the at-a-glance identification.
+              padding: '10px 0 9px',
               textAlign: 'center',
-              // 6 tabs: 9px/.1em keeps EVENTS and SOCIAL clear of their
-              // neighbours even at a 360px viewport.
               font: '700 9px/1 var(--font-tele)',
               letterSpacing: '.1em',
               textDecoration: 'none',
@@ -89,6 +95,7 @@ export function TabBar() {
               marginTop: -1,
             }}
           >
+            <TabIcon name={t.icon} active={active} />
             {t.label}
           </Link>
         );

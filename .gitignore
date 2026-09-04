@@ -50,3 +50,6 @@ yarn-error.log*
 
 # SDD scratch — ledger, briefs, reports, review packages
 /.superpowers/
+
+# Probe/dev scratch: server logs and screenshots, not source.
+.tmp/

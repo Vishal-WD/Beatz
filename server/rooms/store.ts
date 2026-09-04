@@ -8,6 +8,7 @@
  */
 
 import type { RoomState, Challenger, Reign, Player, RoomMode } from '../../types/game';
+import type { FormatId } from '../../lib/domain/formats';
 import { startingVibeFor } from '../../lib/stats';
 import { avatarFor } from '../../lib/rarity';
 import { cardById } from '../../lib/seed-data';
@@ -24,12 +25,16 @@ export class RoomStore {
   /** Monotonic counter per room — the atomic source for queue positions. */
   private queueCounter = new Map<string, number>();
 
-  ensure(roomId: string, mode: RoomMode = 'casual'): RoomState {
+  ensure(roomId: string, mode: RoomMode = 'casual', format: FormatId = 'disco'): RoomState {
     let room = this.rooms.get(roomId);
     if (!room) {
       room = {
         roomId,
         mode,
+        // Disco is the default because it is the plain contested loop; a
+        // room that means to be a Concert must say so when it is created,
+        // rather than silently inheriting dethrone behaviour.
+        format,
         name: roomId,
         vibe: 50,
         reign: null,

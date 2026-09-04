@@ -24,6 +24,7 @@ export const GUEST_PROFILE: DbProfile = {
   tier: 'ROOKIE',
   season_badge: null,
   drops: 0,
+  onboarded_at: null,
   total_reigns_won: 0,
   peak_vibe: 0,
   challenger_wins: 0,
@@ -40,7 +41,11 @@ export function useAuth() {
   const loadProfile = useCallback(async (userId: string) => {
     const db = supabase();
     if (!db) return;
-    const { data } = await db.from('profiles').select('*').eq('id', userId).single();
+    // my_profile is a security_invoker view scoped to auth.uid(). The
+    // `profiles` table is world-readable so the social layer can show
+    // handles and tiers, which would also have exposed every player's
+    // Drops balance; the private economy column lives behind this view.
+    const { data } = await db.from('my_profile').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data as DbProfile);
       setState('signed-in');
@@ -132,6 +137,13 @@ export function useAuth() {
     profile,
     error,
     isSignedIn: state === 'signed-in',
+    /*
+      Distinguish "not known yet" from "known to be signed out". Screens
+      that branch on isSignedIn alone render their signed-out view during
+      the initial session check, which is the sign-in flash on every load.
+    */
+    isLoading: state === 'loading',
+    isAnonymous: state === 'anonymous',
     signIn,
     signUp,
     signOut,

@@ -24,7 +24,10 @@ import {
   DETHRONE_THRESHOLD,
   RECONNECT_GRACE_MS,
 } from '../types/game';
-import { decayRateFor, startingVibeFor } from '../lib/stats';
+import { startingVibeFor } from '../lib/stats';
+import { tickReign, type ReignState } from '../lib/domain/reign';
+import { controlModelFor } from '../lib/domain/formats';
+import { openReign, closeReign, persistenceEnabled } from './db/reigns';
 import { RoomStore } from './rooms/store';
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -97,6 +100,22 @@ io.on('connection', (socket) => {
 
     io.to(roomId).emit('reign:started', result.reign);
     io.to(roomId).emit('room:state', store.ensure(roomId));
+
+    /*
+      Record the reign so it survives the process. Without this a whole
+      session left no trace: the activity feed reads `reigns` and stayed
+      empty, and Total Reigns Won never moved however long people played.
+      Fire-and-forget — a slow database must never stall the tick loop.
+    */
+    void openReign({
+      roomSlug: roomId,
+      playerId: result.reign.playerId,
+      cardId: result.reign.cardId,
+      startingVibe: result.reign.startingVibe,
+      decayRate: result.reign.decayRate,
+    }).then((id) => {
+      if (id) reignRowIds.set(roomId, id);
+    });
   });
 
   socket.on('vibe:hold', ({ roomId, holding }) => {
@@ -126,13 +145,15 @@ io.on('connection', (socket) => {
   });
 });
 
+/** Room slug -> the open `reigns` row, so the tick loop can close it. */
+const reignRowIds = new Map<string, string>();
+
 /** Global tick — one interval drives every room. */
 setInterval(() => {
   for (const room of store.all()) {
     if (!room.reign) continue;
     if (store.isInGrace(room.roomId, room.reign.playerId)) continue;
 
-    const decay = decayRateFor(room.reign.decayRate);
     const holders = store.holdingCount(room.roomId);
     // Zero-mean drift in Solo Practice: a positive mean would outpace decay on
     // high-stamina cards and the throne would never change hands (CLAUDE.md §1).
@@ -141,22 +162,67 @@ setInterval(() => {
       ? Math.random() * 3.2 - 1.6
       : holders * 1.35;
 
-    const next = Math.max(VIBE_MIN, Math.min(VIBE_MAX, room.vibe - decay + crowd));
-    room.vibe = next;
-    room.reign.peakVibe = Math.max(room.reign.peakVibe, next);
+    /*
+      Decay, clamping and the end-of-reign decision all come from
+      lib/domain/reign.ts — the same tested module the client uses.
+
+      This loop used to do its own arithmetic AND dethrone unconditionally,
+      which meant a Concert or Clubbing set ended the moment vibe collapsed.
+      CLAUDE.md §1.2 is explicit that in a spectator format vibe SCORES the
+      set and cannot end it; low vibe is a weak set the room can see, not a
+      forfeit. tickReign gates that on the control model, so the rule now
+      lives in one place instead of being restated (differently) here.
+    */
+    const before: ReignState = {
+      vibe: room.vibe,
+      startedAt: room.reign.startedAt,
+      peakVibe: room.reign.peakVibe,
+      peakMoments: room.reign.peakMomentsTriggered,
+      endedReason: null,
+    };
+
+    const after = tickReign(before, {
+      control: controlModelFor(room.format),
+      stamina: room.reign.decayRate,
+      crowdPull: crowd,
+      deltaMs: VIBE_TICK_MS,
+      now: Date.now(),
+    });
+
+    room.vibe = after.vibe;
+    room.reign.peakVibe = after.peakVibe;
+    room.reign.peakMomentsTriggered = after.peakMoments;
     room.updatedAt = Date.now();
 
-    io.to(room.roomId).emit('vibe:update', { vibe: Math.round(next), at: room.updatedAt });
+    io.to(room.roomId).emit('vibe:update', { vibe: Math.round(after.vibe), at: room.updatedAt });
 
-    if (next <= DETHRONE_THRESHOLD) {
+    if (after.endedReason) {
       const dethroned = room.reign.playerId;
+      const rowId = reignRowIds.get(room.roomId);
+      const peak = after.peakVibe;
+
       store.endReign(room.roomId, 'dethroned');
       io.to(room.roomId).emit('reign:ended', { playerId: dethroned, reason: 'dethroned' });
       io.to(room.roomId).emit('room:state', room);
+
+      // Closing the row folds the reign into the player's lifetime stats
+      // (a database trigger owns that arithmetic) and promotes the next
+      // challenger — but only in a contested room, which end_reign decides.
+      if (rowId) {
+        reignRowIds.delete(room.roomId);
+        void closeReign(rowId, after.endedReason, peak);
+      }
     }
   }
 }, VIBE_TICK_MS);
 
 httpServer.listen(PORT, () => {
   console.log(`[beatz] realtime server on :${PORT}`);
+  // Say plainly whether reigns are being recorded. Silent in-memory-only
+  // operation is how the feed stayed empty without anyone noticing.
+  console.log(
+    persistenceEnabled
+      ? '[beatz] reign persistence ON'
+      : '[beatz] reign persistence OFF (no SUPABASE_URL / SERVICE_ROLE_KEY) — rooms are memory-only',
+  );
 });
