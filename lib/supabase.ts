@@ -19,6 +19,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { ChartRow } from './domain/chart';
 import type { FeedSources } from './domain/activity';
 import type { PackTier } from './domain/packs';
+import type { MicPerson, Nomination } from './domain/mic';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -330,6 +331,121 @@ export async function fetchChallengerLine(roomUuid: string): Promise<LinePlayer[
       displayName: prof?.display_name ?? 'Challenger',
     };
   });
+}
+
+/**
+ * Everything the room needs to render its mic state in one round trip.
+ *
+ * Takes the room's UUID, not its slug: the socket keys rooms by slug while
+ * the database keys them by id, and passing the wrong one silently matches
+ * no rows.
+ */
+export async function fetchMicState(roomUuid: string): Promise<{
+  people: MicPerson[];
+  holderId: string | null;
+  nominations: Nomination[];
+}> {
+  const empty = { people: [], holderId: null, nominations: [] };
+  const db = supabase();
+  if (!db || !roomUuid) return empty;
+
+  const [peopleRes, nomRes] = await Promise.all([
+    db.from('mic_people')
+      .select('player_id, is_holder, profiles(display_name)')
+      .eq('room_id', roomUuid),
+    db.from('nominations')
+      .select('id, player_id, card_id, nomination_votes(player_id)')
+      .eq('room_id', roomUuid)
+      .is('played_at', null),
+  ]);
+
+  if (peopleRes.error || nomRes.error) {
+    console.warn('[supabase] fetchMicState:',
+      peopleRes.error?.message ?? nomRes.error?.message);
+    return empty;
+  }
+
+  const people: MicPerson[] = (peopleRes.data ?? []).map((r) => {
+    // postgrest types an embedded row as an array; a to-one relation
+    // arrives as a single object at runtime. Accept either.
+    const row = r as unknown as {
+      player_id: string;
+      is_holder: boolean;
+      profiles: { display_name: string } | { display_name: string }[] | null;
+    };
+    const prof = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return { playerId: row.player_id, displayName: prof?.display_name ?? 'Performer' };
+  });
+
+  const holderRow = (peopleRes.data ?? []).find(
+    (r) => (r as unknown as { is_holder: boolean }).is_holder,
+  ) as unknown as { player_id: string } | undefined;
+
+  const nominations: Nomination[] = (nomRes.data ?? []).map((r) => {
+    const row = r as unknown as {
+      id: string; player_id: string; card_id: string;
+      nomination_votes: { player_id: string }[] | null;
+    };
+    return {
+      id: row.id,
+      playerId: row.player_id,
+      cardId: row.card_id,
+      votes: (row.nomination_votes ?? []).map((v) => v.player_id),
+    };
+  });
+
+  return { people, holderId: holderRow?.player_id ?? null, nominations };
+}
+
+/** Offers one of your own cards for the room to vote on. */
+export async function nominateCard(roomUuid: string, cardId: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db.from('nominations')
+    .insert({ room_id: roomUuid, player_id: auth.user.id, card_id: cardId });
+  return !error;
+}
+
+/** Casts or withdraws your vote. The primary key makes a double vote a no-op. */
+export async function voteNomination(nominationId: string, on: boolean): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+
+  if (!on) {
+    const { error } = await db.from('nomination_votes')
+      .delete().match({ nomination_id: nominationId, player_id: auth.user.id });
+    return !error;
+  }
+  const { error } = await db.from('nomination_votes')
+    .upsert({ nomination_id: nominationId, player_id: auth.user.id });
+  return !error;
+}
+
+/** Votes for a candidate to take the mic. */
+export async function requestStepIn(roomUuid: string, candidateId: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db.from('step_in_votes')
+    .upsert({ room_id: roomUuid, candidate_id: candidateId, voter_id: auth.user.id });
+  return !error;
+}
+
+/** Resolves a pending step-in. Returns the new holder, or null if it did not carry. */
+export async function passMic(roomUuid: string): Promise<string | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data, error } = await db.rpc('pass_mic', { p_room: roomUuid });
+  if (error) {
+    console.warn('[supabase] passMic:', error.message);
+    return null;
+  }
+  return (data as string) ?? null;
 }
 
 export interface PackPull {
