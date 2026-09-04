@@ -87,6 +87,9 @@ export interface DbProfile {
   display_name: string;
   initials: string;
   avatar_gradient: string | null;
+  /** An uploaded picture. Null means fall back to avatar_gradient, which
+   *  every profile always has. */
+  avatar_url: string | null;
   bio: string | null;
   tier: string;
   season_badge: string | null;
@@ -890,4 +893,121 @@ export async function fetchOpenRooms(): Promise<DbRoom[]> {
     return [];
   }
   return (data ?? []) as DbRoom[];
+}
+
+/* ── Account management ─────────────────────────────────────────────── */
+
+/**
+ * Replaces the signed-in player's avatar.
+ *
+ * The file is stored under `<user id>/…`, which is what the storage policies
+ * check — a path prefix rather than a lookup, so a player can only ever
+ * write inside their own folder.
+ *
+ * `avatar_gradient` is deliberately left alone. It is the fallback every
+ * profile already has, so removing the picture later leaves something to
+ * fall back to rather than a blank square.
+ */
+export async function uploadAvatar(file: File): Promise<{ url: string } | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'Not connected.' };
+
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { error: 'Sign in first.' };
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    return { error: 'Use a JPEG, PNG or WebP image.' };
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    return { error: 'That image is over 2MB.' };
+  }
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  // Timestamped so the CDN cannot serve the previous picture from cache.
+  const path = `${auth.user.id}/avatar-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await db.storage.from('avatars').upload(path, file, { upsert: true });
+  if (upErr) {
+    console.warn('[supabase] uploadAvatar:', upErr.message);
+    return { error: 'Could not upload that image.' };
+  }
+
+  const { data: pub } = db.storage.from('avatars').getPublicUrl(path);
+  const { error: dbErr } = await db
+    .from('profiles')
+    .update({ avatar_url: pub.publicUrl })
+    .eq('id', auth.user.id);
+
+  if (dbErr) {
+    console.warn('[supabase] uploadAvatar (profile):', dbErr.message);
+    return { error: 'Uploaded, but could not save it to your profile.' };
+  }
+  return { url: pub.publicUrl };
+}
+
+/** Drops back to the generated gradient. The stored file is left in place —
+ *  harmless, and removing it would break any cached render still pointing
+ *  at it. */
+export async function removeAvatar(): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return false;
+  const { error } = await db.from('profiles').update({ avatar_url: null }).eq('id', auth.user.id);
+  return !error;
+}
+
+/**
+ * Changes the password.
+ *
+ * Supabase's updateUser does NOT ask for the current password — it trusts
+ * the session. That is a real weakness on a shared phone, so the current
+ * password is verified first by re-signing in with it. A wrong one fails
+ * here rather than silently letting whoever picked the phone up take the
+ * account.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: true } | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'Not connected.' };
+
+  const { data: auth } = await db.auth.getUser();
+  const email = auth.user?.email;
+  if (!email) return { error: 'Sign in first.' };
+
+  if (newPassword.length < 8) return { error: 'Use at least 8 characters.' };
+  if (newPassword === currentPassword) return { error: 'That is your current password.' };
+
+  const { error: reauth } = await db.auth.signInWithPassword({ email, password: currentPassword });
+  if (reauth) return { error: 'Current password is wrong.' };
+
+  const { error } = await db.auth.updateUser({ password: newPassword });
+  if (error) {
+    console.warn('[supabase] changePassword:', error.message);
+    return { error: 'Could not change the password.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Deletes the account and everything attached to it, permanently.
+ *
+ * The work happens in the `delete_own_account` SQL function, which is
+ * SECURITY DEFINER because a client cannot touch auth.users. It takes no
+ * argument and acts on auth.uid(), so there is nothing to point at someone
+ * else's account.
+ */
+export async function deleteAccount(): Promise<{ ok: true } | { error: string }> {
+  const db = supabase();
+  if (!db) return { error: 'Not connected.' };
+
+  const { error } = await db.rpc('delete_own_account');
+  if (error) {
+    console.warn('[supabase] deleteAccount:', error.message);
+    return { error: 'Could not delete the account.' };
+  }
+  await db.auth.signOut();
+  return { ok: true };
 }

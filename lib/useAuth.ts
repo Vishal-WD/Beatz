@@ -20,6 +20,7 @@ export const GUEST_PROFILE: DbProfile = {
   display_name: 'Guest',
   initials: 'GU',
   avatar_gradient: null,
+  avatar_url: null,
   bio: null,
   tier: 'ROOKIE',
   season_badge: null,
@@ -128,6 +129,13 @@ export function useAuth() {
     return { ok: true, message: '' };
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const db = supabase();
+    if (!db) return;
+    const { data: auth } = await db.auth.getUser();
+    if (auth.user) await loadProfile(auth.user.id);
+  }, [loadProfile]);
+
   const signOut = useCallback(async () => {
     await supabase()?.auth.signOut();
   }, []);
@@ -147,5 +155,9 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    /* Re-reads the profile row. Needed after a change made outside this
+       hook -- an avatar upload writes straight to `profiles`, and without
+       this the header keeps showing the old picture until a reload. */
+    refreshProfile,
   };
 }

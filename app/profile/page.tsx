@@ -10,6 +10,8 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
+import { Avatar } from '@/components/Avatar';
+import { AccountSettings } from '@/components/AccountSettings';
 import { PROFILE_FRAME, RARITY, avatarFor } from '@/lib/rarity';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
@@ -26,7 +28,8 @@ const RARITY_CHIPS: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 export default function ProfileScreen() {
   const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all');
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
-  const { profile, isSignedIn, isLoading, signOut } = useAuth();
+  const { profile, isSignedIn, isLoading, signOut, refreshProfile } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
   /*
     The binder is the player's OWN collection. It used to render the whole
@@ -155,16 +158,12 @@ export default function ProfileScreen() {
         <div style={{ padding: 2, borderRadius: 16, background: PROFILE_FRAME.frame }}>
           <div style={{ background: 'var(--booth-panel)', borderRadius: 14, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div
-                style={{
-                  width: 54, height: 54, borderRadius: '50%',
-                  background: avatarFor(profile.id),
-                  display: 'grid', placeItems: 'center',
-                  font: '700 20px/1 var(--font-stat)',
-                }}
-              >
-                {profile.initials}
-              </div>
+              <Avatar
+                id={profile.id}
+                initials={profile.initials}
+                url={profile.avatar_url}
+                size={54}
+              />
               <div style={{ flex: 1 }}>
                 <div style={{ font: '400 24px/1 var(--font-title)', textTransform: 'uppercase' }}>
                   {profile.display_name}
@@ -264,7 +263,17 @@ export default function ProfileScreen() {
           >
             <span>PINNED · {pinned.length}</span>
             {isSignedIn
-              ? <button onClick={() => void signOut()} style={{ font:'inherit', letterSpacing:'inherit', color:'var(--neon-cyan)' }}>SIGN OUT</button>
+              ? (
+                <span style={{ display: 'flex', gap: 14 }}>
+                  <button
+                    onClick={() => setAccountOpen(true)}
+                    style={{ font:'inherit', letterSpacing:'inherit', color:'var(--neon-cyan)' }}
+                  >
+                    ACCOUNT
+                  </button>
+                  <button onClick={() => void signOut()} style={{ font:'inherit', letterSpacing:'inherit', color:'var(--neon-cyan)' }}>SIGN OUT</button>
+                </span>
+              )
               : <Link href="/signin" style={{ color:'var(--neon-cyan)', textDecoration:'none' }}>SIGN IN</Link>}
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
@@ -467,6 +476,17 @@ export default function ProfileScreen() {
           </div>
         </div>
       </div>
+
+      <AccountSettings
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        profile={profile}
+        onProfileChanged={() => void refreshProfile()}
+        /* Deleting signs you out server-side; sending the player home means
+           they land on the signed-out screen rather than a profile that no
+           longer exists. */
+        onDeleted={() => { setAccountOpen(false); window.location.href = '/'; }}
+      />
     </PhoneShell>
   );
 }
