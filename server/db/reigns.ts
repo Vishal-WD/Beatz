@@ -20,14 +20,41 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const URL = process.env.SUPABASE_URL ?? '';
+const URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+/* Reading the card catalogue needs no elevated rights -- `cards` is public
+   under RLS -- so it must not depend on the service key. See readClient(). */
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 /** False when the server is running without credentials — then it just
  *  keeps everything in memory, exactly as it did before. */
 export const persistenceEnabled = Boolean(URL && SERVICE_KEY);
 
 let client: SupabaseClient | null = null;
+let reader: SupabaseClient | null = null;
+
+/**
+ * A client for PUBLIC reads, independent of the service key.
+ *
+ * loadCards() first hung off db(), which returns null without a service
+ * role key -- so a server started without one served an empty card pool and
+ * rejected every card:play as CARD_NOT_FOUND. That is the exact failure the
+ * fixture removal was meant to end, arrived at from the other direction.
+ *
+ * Card reads are public, so the anon key is the correct credential and the
+ * service key stays reserved for the writes that genuinely need to bypass
+ * RLS.
+ */
+function readClient(): SupabaseClient | null {
+  if (client) return client;          // service client reads fine too
+  if (!URL || !ANON_KEY) return null;
+  if (!reader) {
+    reader = createClient(URL, ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return reader;
+}
 
 function db(): SupabaseClient | null {
   if (!persistenceEnabled) return null;
@@ -149,7 +176,7 @@ export async function loadCards(): Promise<Map<string, ServerCard>> {
   if (cardLoad) return cardLoad;
 
   cardLoad = (async () => {
-    const c = db();
+    const c = readClient();
     if (!c) return new Map<string, ServerCard>();
 
     const { data, error } = await c

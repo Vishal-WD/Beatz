@@ -64,12 +64,25 @@ io.on('connection', (socket) => {
   let playerId: string | null = null;
 
   socket.on('room:join', ({ roomId, playerId: pid, displayName }) => {
+    /*
+      A malformed join used to take the whole process down: addPlayer calls
+      displayName.split(), so a payload without one threw an uncaught
+      TypeError inside the socket handler and killed the server -- every
+      room, every player, not just the bad client. An untrusted socket
+      payload cannot be allowed to do that.
+    */
+    if (typeof roomId !== 'string' || !roomId || typeof pid !== 'string' || !pid) {
+      socket.emit('error:msg', { code: 'BAD_JOIN', message: 'roomId and playerId are required.' });
+      return;
+    }
+
     joinedRoom = roomId;
     playerId = pid;
     socket.join(roomId);
 
     const room = store.ensure(roomId);
-    store.addPlayer(roomId, { id: pid, displayName });
+    // A missing name is not a reason to refuse entry, only to fall back.
+    store.addPlayer(roomId, { id: pid, displayName: typeof displayName === 'string' && displayName.trim() ? displayName : 'Guest' });
 
     // A player rejoining within the grace window resumes their reign rather
     // than losing it (CLAUDE.md §6) — a dropped phone must not cost the throne.
