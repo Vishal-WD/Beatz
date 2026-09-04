@@ -272,6 +272,15 @@ button {
   100% { opacity: 1; transform: scale(1); }
 }
 
+/* PerformerDisc's slow turntable spin while a spectator set is playing.
+   `transform` only, so the global prefers-reduced-motion rule above
+   (animation-duration -> ~0) is sufficient to stop it without a second,
+   component-local media query. */
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /**
  * Motion is enhancement, never the only signal: rarity always carries a text
  * tag, so removing animation loses nothing semantic

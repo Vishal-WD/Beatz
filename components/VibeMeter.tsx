@@ -43,14 +43,28 @@ const BAND_ANNOUNCE: Record<VibeBand, string> = {
   peak: 'Vibe peaking.',
 };
 
+/**
+ * Spectator/delegated rooms cannot lose the throne — there is none to lose
+ * (canDethrone is false there, CLAUDE.md §1.2). The default announcements
+ * above assume a contested room; this is the non-contested substitute for
+ * `critical`, used only when the caller says dethroning cannot happen here.
+ */
+const CRITICAL_ANNOUNCE_NO_DETHRONE = 'Vibe critical. The set is cooling off.';
+
 interface Props {
   vibe: number;
   size?: 'sm' | 'lg';
   /** Fires once per crossing into `critical` — good place for a warning sound. */
   onCritical?: () => void;
+  /**
+   * False in spectator/delegated rooms, where a low vibe cannot end
+   * anything — only scores it. Defaults to true so every existing caller
+   * (the contested Throne Room) keeps its current wording unchanged.
+   */
+  dethroneable?: boolean;
 }
 
-export function VibeMeter({ vibe, size = 'sm', onCritical }: Props) {
+export function VibeMeter({ vibe, size = 'sm', onCritical, dethroneable = true }: Props) {
   const band = vibeBand(vibe);
   const color = vibeColor(vibe);
   const prevBand = useRef<VibeBand>(band);
@@ -65,9 +79,11 @@ export function VibeMeter({ vibe, size = 'sm', onCritical }: Props) {
     if (band === prevBand.current) return;
     const was = prevBand.current;
     prevBand.current = band;
-    setAnnouncement(BAND_ANNOUNCE[band]);
+    setAnnouncement(
+      band === 'critical' && !dethroneable ? CRITICAL_ANNOUNCE_NO_DETHRONE : BAND_ANNOUNCE[band],
+    );
     if (band === 'critical' && was !== 'critical') onCriticalRef.current?.();
-  }, [band]);
+  }, [band, dethroneable]);
 
   const big = size === 'lg';
 

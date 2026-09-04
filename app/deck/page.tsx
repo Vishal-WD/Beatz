@@ -11,16 +11,18 @@ import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { NowPlaying } from '@/components/NowPlaying';
 import { VibeMeter } from '@/components/VibeMeter';
+import { PerformerDisc } from '@/components/PerformerDisc';
 import { useVibe } from '@/lib/useVibe';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
 import { useRoom, MODE_LABEL } from '@/lib/useRoom';
+import { useMic } from '@/lib/useMic';
 import { vibeColor, RARITY } from '@/lib/rarity';
 import { useCards, SOURCE_LABEL } from '@/lib/useCards';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
-import { supabase, subscribeToRoom, type DbRoom } from '@/lib/supabase';
-import { controlModelFor, type FormatId } from '@/lib/domain/formats';
+import { supabase, subscribeToRoom, toggleFollow, type DbRoom } from '@/lib/supabase';
+import { controlModelFor, canDethrone, type FormatId } from '@/lib/domain/formats';
 import { positionOf } from '@/lib/domain/challengers';
 import { canPlayCard, type PlayRefusal } from '@/lib/domain/play-rules';
 
@@ -102,6 +104,20 @@ export default function DeckScreen() {
 
   const control = controlModelFor(dbRoom?.format ?? DEFAULT_FORMAT);
   /*
+    canDethrone already returns false for spectator/delegated rooms
+    (lib/domain/formats.ts) — the domain has always been right here. Only
+    the screen used to lie, printing "THRONE" and dethrone/collapse copy in
+    every format regardless of what canDethrone said. This flag is what the
+    render below branches on to stop doing that.
+  */
+  const dethroneable = canDethrone(control);
+
+  // Task 5 builds the mic UI proper; this screen only needs the holder's
+  // name for the disc, which is why the hook is consumed here rather than
+  // gated behind a not-yet-built panel.
+  const mic = useMic(dbRoom?.id ?? null);
+
+  /*
     Whose collection the card came from. card_ownership is RLS-scoped to the
     caller's own rows, so a client cannot read who else owns a card — the
     only owner it can truthfully name is the signed-in player. Crediting
@@ -116,18 +132,61 @@ export default function DeckScreen() {
   const challengerLabel = myPosition ? `CHALLENGER #${myPosition}` : 'NOT IN LINE';
 
   /*
-    Who actually holds the throne. This was the hardcoded string
+    Who actually holds control of the deck. This was the hardcoded string
     "MAYA J. HOLDS · NEON TEETH", which claimed a live reign by a player who
     was not in the room — the app asserted multiplayer state that did not
     exist. Say what is true instead: the real holder when the server reports
     one, and plain Solo Practice when nobody else is here (CLAUDE.md §6).
+
+    Wording branches on control model: a contested room has a throne that
+    can be taken; spectator and delegated rooms do not, so "THRONE" and
+    dethrone-flavoured copy never appear there (CLAUDE.md §1.2 — vibe scores
+    a spectator set, it cannot end one).
   */
   const holderLabel = useMemo(() => {
     const holder = (room as { holder_name?: string | null } | null)?.holder_name;
-    if (holder) return `${holder.toUpperCase()} HOLDS`;
-    if (deckId) return 'YOU HOLD THE THRONE';
-    return 'THRONE OPEN · PLAY A CARD';
-  }, [room, deckId]);
+    if (dethroneable) {
+      if (holder) return `${holder.toUpperCase()} HOLDS`;
+      if (deckId) return 'YOU HOLD THE THRONE';
+      return 'THRONE OPEN · PLAY A CARD';
+    }
+    if (control === 'delegated') {
+      if (holder) return `${holder.toUpperCase()} IS DJING`;
+      if (deckId) return 'YOU ARE DJING';
+      return 'PICK FROM THE CROWD’S POOL';
+    }
+    // Spectator: the performer's name lives on PerformerDisc; this strip
+    // only needs to say the set is live, never that it could be taken.
+    if (holder) return `${holder.toUpperCase()} IS LIVE`;
+    if (deckId) return 'YOU ARE LIVE';
+    return 'SET NOT STARTED';
+  }, [room, deckId, dethroneable, control]);
+
+  /*
+    Performer's display name for PerformerDisc, in spectator rooms. Same
+    source as holderLabel above (the server-reported holder), falling back
+    to the mic holder's name when the socket has not reported one yet, and
+    finally to a plain "PERFORMER" rather than inventing an identity.
+  */
+  const performerName = useMemo(() => {
+    const holder = (room as { holder_name?: string | null } | null)?.holder_name;
+    if (holder) return holder.toUpperCase();
+    const micHolder = mic.people.find((p) => p.playerId === mic.holderId);
+    if (micHolder) return micHolder.displayName.toUpperCase();
+    if (deckId) return (isSignedIn ? profile.display_name : 'YOU').toUpperCase();
+    return 'PERFORMER';
+  }, [room, mic.people, mic.holderId, deckId, isSignedIn, profile.display_name]);
+
+  const [following, setFollowing] = useState(false);
+  const onFollowPerformer = useCallback(() => {
+    const target = dbRoom?.host_id;
+    if (!target || !isSignedIn) return;
+    const next = !following;
+    setFollowing(next);
+    void toggleFollow(target, next);
+    play('tap');
+    haptic('light');
+  }, [dbRoom?.host_id, isSignedIn, following, play, haptic]);
 
   const deckCard = useMemo(() => hand5.find((c) => c.id === deckId) ?? null, [hand5, deckId]);
   const hand = useMemo(() => hand5.filter((c) => c.id !== deckId), [hand5, deckId]);
@@ -219,10 +278,17 @@ export default function DeckScreen() {
               This used to print "Challenger #2" for every visitor — a queue
               position nobody held. NOT IN LINE is the honest default; a real
               rank only shows once positionOf() finds this player queued.
+
+              A challenger line only exists where dethroning does — showing
+              it in a spectator or delegated room would imply a queue to
+              take over that the domain does not have (canDethrone is false
+              there), so this whole line is contested-only.
             */}
-            <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)', marginTop: 4 }}>
-              {challengerLabel}
-            </div>
+            {dethroneable && (
+              <div style={{ font: '500 9px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)', marginTop: 4 }}>
+                {challengerLabel}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.2em', color: 'var(--ink-40)' }}>
@@ -234,7 +300,26 @@ export default function DeckScreen() {
           </div>
         </div>
 
-        {/* Live reign strip */}
+        {/*
+          Spectator rooms lead with the performer, not a throne strip — a
+          Concert is a performance, and putting a "holds the throne" line
+          above it implied the same contested duel a Disco runs. The disc
+          spins while a set is live and stands still when nothing is
+          playing or the deck slot is empty.
+        */}
+        {control === 'spectator' && (
+          <PerformerDisc
+            name={performerName}
+            artworkUrl={deckCard?.artworkUrl ?? null}
+            spinning={Boolean(deckCard) && vibe > 0}
+            onFollow={onFollowPerformer}
+            following={following}
+          />
+        )}
+
+        {/* Live reign strip. In a spectator room this is applause scoring
+            the set, never a collapse timer — canDethrone is false there,
+            so nothing below ever reads as "about to end". */}
         <div
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -252,7 +337,12 @@ export default function DeckScreen() {
           >
             {holderLabel}
           </span>
-          <VibeMeter vibe={vibe} onCritical={onCritical} />
+          {control === 'spectator' && (
+            <span style={{ font: '700 7px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)' }}>
+              APPLAUSE
+            </span>
+          )}
+          <VibeMeter vibe={vibe} onCritical={dethroneable ? onCritical : undefined} dethroneable={dethroneable} />
         </div>
 
         {/* Never silently simulate a multiplayer game (CLAUDE.md §6). */}
@@ -361,8 +451,17 @@ export default function DeckScreen() {
               literal 14, the same invented-count defect as the old
               "MAYA J. HOLDS" string. Report what is actually known: the
               real Challenger Line length, or Solo Practice when it's empty.
+
+              "IN LINE" only means something where a challenger line exists
+              — a contested room. Spectator and delegated rooms have no
+              queue to take over, so they get the crowd-neutral SOLO
+              PRACTICE / LIVE ROOM label instead of implying one.
             */}
-            <span>{line.length > 0 ? `${line.length} IN LINE` : 'SOLO PRACTICE'}</span>
+            <span>
+              {dethroneable
+                ? line.length > 0 ? `${line.length} IN LINE` : 'SOLO PRACTICE'
+                : mode === 'live' ? 'LIVE ROOM' : 'SOLO PRACTICE'}
+            </span>
             <span>YOUR PULL {holdPct}%</span>
           </div>
         </div>
