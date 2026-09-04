@@ -16,7 +16,6 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { ChartRow } from './domain/chart';
 import type { FeedSources } from './domain/activity';
 import type { PackTier } from './domain/packs';
 import type { MicPerson, Nomination } from './domain/mic';
@@ -201,31 +200,6 @@ export async function updateDisplayName(name: string): Promise<boolean> {
     .update({ display_name: name })
     .eq('id', auth.user.id);
   return !error;
-}
-
-/**
- * Rows for the world chart. Scarcity is derived in lib/domain/chart.ts —
- * this only fetches what the database already tracks.
- */
-export async function fetchChartRows(): Promise<ChartRow[] | null> {
-  const db = supabase();
-  if (!db) return null;
-  const { data, error } = await db
-    .from('cards')
-    .select('id, title, subtitle, rarity, artwork_url, supply_total, supply_remaining');
-  if (error) {
-    console.warn('[supabase] fetchChartRows:', error.message);
-    return null;
-  }
-  return (data ?? []).map((c) => ({
-    cardId: c.id,
-    title: c.title,
-    subtitle: c.subtitle,
-    rarity: c.rarity,
-    artworkUrl: c.artwork_url,
-    supplyTotal: c.supply_total,
-    supplyRemaining: c.supply_remaining,
-  }));
 }
 
 /**
@@ -1010,4 +984,109 @@ export async function deleteAccount(): Promise<{ ok: true } | { error: string }>
   }
   await db.auth.signOut();
   return { ok: true };
+}
+
+/* ── Room membership ────────────────────────────────────────────────── */
+
+export interface RoomMembership {
+  roomId: string;
+  slug: string;
+  name: string;
+  role: 'host' | 'member';
+  format: DbRoom['format'];
+}
+
+/**
+ * Joins a room, or says why not.
+ *
+ * The door is enforced in SQL (`join_room`), not here: a client-side code
+ * check is a suggestion, and `rooms.join_code` is deliberately not readable
+ * by ordinary selects. The host is always admitted to their own room.
+ */
+export async function joinRoom(
+  slug: string,
+  code?: string,
+): Promise<{ roomId: string } | { error: 'not_signed_in' | 'no_such_room' | 'room_closed' | 'bad_code' | 'failed' }> {
+  const db = supabase();
+  if (!db) return { error: 'failed' };
+
+  const { data, error } = await db.rpc('join_room', { p_slug: slug, p_code: code ?? null });
+  if (error) {
+    console.warn('[supabase] joinRoom:', error.message);
+    return { error: 'failed' };
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.out_ok) return { error: (row?.out_reason ?? 'failed') as 'failed' };
+  return { roomId: row.out_room_id as string };
+}
+
+/**
+ * Leaves. The host handing over rather than closing the room is decided
+ * server-side, so a client that dies mid-call cannot strand everyone.
+ */
+export async function leaveRoom(roomUuid: string): Promise<boolean> {
+  const db = supabase();
+  if (!db) return false;
+  const { error } = await db.rpc('leave_room', { p_room: roomUuid });
+  if (error) console.warn('[supabase] leaveRoom:', error.message);
+  return !error;
+}
+
+/** Which room, if any, you are currently in. */
+export async function fetchMyMembership(): Promise<RoomMembership | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data, error } = await db
+    .from('room_members')
+    .select('role, room_id, rooms(id, slug, name, format, is_open)')
+    .eq('player_id', auth.user.id)
+    .limit(1);
+
+  if (error || !data?.length) return null;
+  const row = data[0] as unknown as {
+    role: 'host' | 'member';
+    rooms: { id: string; slug: string; name: string; format: DbRoom['format']; is_open: boolean }
+         | { id: string; slug: string; name: string; format: DbRoom['format']; is_open: boolean }[]
+         | null;
+  };
+  const r = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
+  // A room that closed under you is not a membership worth returning.
+  if (!r || !r.is_open) return null;
+  return { roomId: r.id, slug: r.slug, name: r.name, role: row.role, format: r.format };
+}
+
+/** Keeps you from being swept as stale while you are actually present. */
+export async function touchMembership(roomUuid: string): Promise<void> {
+  const db = supabase();
+  if (!db) return;
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return;
+  await db.from('room_members')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('room_id', roomUuid)
+    .eq('player_id', auth.user.id);
+}
+
+/** Live player counts for the lobby, keyed by room id. */
+export async function fetchRoomCounts(): Promise<Record<string, number>> {
+  const db = supabase();
+  if (!db) return {};
+  // Opportunistic: keeps the counts the lobby shows honest.
+  await db.rpc('sweep_stale_members');
+  const { data, error } = await db.from('room_members').select('room_id');
+  if (error || !data) return {};
+  const out: Record<string, number> = {};
+  for (const r of data) out[(r as { room_id: string }).room_id] = (out[(r as { room_id: string }).room_id] ?? 0) + 1;
+  return out;
+}
+
+/** The host's shareable code. Null for open rooms, which need none. */
+export async function fetchJoinCode(roomUuid: string): Promise<string | null> {
+  const db = supabase();
+  if (!db) return null;
+  const { data } = await db.from('rooms').select('join_code').eq('id', roomUuid).single();
+  return (data as { join_code: string | null } | null)?.join_code ?? null;
 }

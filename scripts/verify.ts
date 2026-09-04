@@ -13,7 +13,6 @@
 import { deriveStats, rarityForP, supplyTotal, decayRateFor, startingVibeFor,
   compositePopularity, HYPE_STAMINA_MIN, HYPE_STAMINA_MAX } from '../lib/stats';
 import { RARITY } from '../lib/rarity';
-import { buildChart } from '../lib/domain/chart';
 import type { Rarity } from '../types/cards';
 
 
@@ -249,21 +248,6 @@ function cardPoolChecks(pool: PoolCard[]) {
 
   check('a legendary exists for the pack money-shot (DEMO_FALLBACKS)',
     pool.some((c) => c.rarity === 'legendary'));
-
-  // The marketplace listings this used to check were invented offer amounts
-  // on a screen with no bids table behind it. The chart now ranks by real
-  // scarcity instead, so the invariant worth holding is that the ranking is
-  // monotonic in scarcity — a less-claimed card must never outrank a
-  // more-claimed one.
-  check('world chart ranks by descending scarcity',
-    (() => {
-      const chart = buildChart(pool.map((c) => ({
-        cardId: c.id, title: c.title, subtitle: c.subtitle, rarity: c.rarity,
-        artworkUrl: c.artworkUrl,
-        supplyTotal: c.supplyTotal, supplyRemaining: c.supplyRemaining,
-      })));
-      return chart.every((e, i) => i === 0 || chart[i - 1].scarcity >= e.scarcity);
-    })());
 
   // ---------------------------------------------------------------------------
 }

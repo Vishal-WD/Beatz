@@ -4,7 +4,7 @@ import { TabIcon } from './TabIcon';
 
 describe('TabIcon', () => {
   it('renders an svg for every tab name', () => {
-    for (const n of ['room', 'feed', 'shop', 'chart', 'you'] as const) {
+    for (const n of ['room', 'feed', 'shop', 'home', 'you'] as const) {
       const { container, unmount } = render(<TabIcon name={n} active={false} />);
       expect(container.querySelector('svg'), `no svg for ${n}`).toBeTruthy();
       unmount();

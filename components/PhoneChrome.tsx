@@ -9,10 +9,10 @@ import { useSound } from '@/lib/useSound';
 import { TabIcon } from '@/components/ui/TabIcon';
 
 export const TABS = [
-  { href: '/deck',    label: 'ROOM',  icon: 'room'  as const },
-  { href: '/packs',   label: 'SHOP',  icon: 'shop'  as const },
-  { href: '/chart',   label: 'CHART', icon: 'chart' as const },
-  { href: '/profile', label: 'YOU',   icon: 'you'   as const },
+  { href: '/home',    label: 'HOME', icon: 'home' as const },
+  { href: '/packs',   label: 'SHOP', icon: 'shop' as const },
+  { href: '/deck',    label: 'ROOM', icon: 'room' as const },
+  { href: '/profile', label: 'YOU',  icon: 'you'  as const },
 ];
 
 export function StatusBar() {

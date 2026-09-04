@@ -9,7 +9,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
-import { RoomPicker } from '@/components/RoomPicker';
+import { RoomLobby } from '@/components/RoomLobby';
 import { NowPlaying } from '@/components/NowPlaying';
 import { VibeMeter } from '@/components/VibeMeter';
 import { PerformerDisc } from '@/components/PerformerDisc';
@@ -22,7 +22,11 @@ import { vibeColor, RARITY } from '@/lib/rarity';
 import { useCards, SOURCE_LABEL } from '@/lib/useCards';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
-import { supabase, subscribeToRoom, toggleFollow, type DbRoom } from '@/lib/supabase';
+import {
+  supabase, subscribeToRoom, toggleFollow,
+  joinRoom, leaveRoom, fetchMyMembership, touchMembership,
+  type DbRoom, type RoomMembership,
+} from '@/lib/supabase';
 import { controlModelFor, canDethrone, type FormatId } from '@/lib/domain/formats';
 import { positionOf } from '@/lib/domain/challengers';
 import { canPlayCard, type PlayRefusal } from '@/lib/domain/play-rules';
@@ -84,7 +88,6 @@ export default function DeckScreen() {
     return [...pool].sort((a, b) => rank[a.rarity] - rank[b.rarity] || b.hype - a.hype);
   }, [pool]);
 
-  const [pickerOpen, setPickerOpen] = useState(false);
   /* The rail scrolls, so every card is reachable and nothing is sliced
      away. Kept as its own name because the deck slot filters one out. */
   const hand5 = sorted;
@@ -105,19 +108,54 @@ export default function DeckScreen() {
     state, remembered per device so returning to the tab does not silently
     move you.
   */
-  const [roomSlug, setRoomSlug] = useState<string>(ROOM_SLUG);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('beatz:room');
-      if (saved) setRoomSlug(saved);
-    } catch { /* private mode: fall back to the default room */ }
+  /*
+    Membership, from the database rather than from localStorage.
+
+    The slug used to be remembered on the device and `useRoom` joined the
+    socket on mount, so OPENING THE TAB put you in a room: the deck and
+    hold-to-vibe were live before you had chosen anything, and there was no
+    way to be outside a room at all. Membership is now a real row
+    (`room_members`), so it survives a restart, the player count is honest,
+    and "am I in a room" has a single answer the server agrees with.
+  */
+  const [membership, setMembership] = useState<RoomMembership | null>(null);
+  const [memberState, setMemberState] = useState<'checking' | 'settled'>('checking');
+
+  const refreshMembership = useCallback(async () => {
+    const m = await fetchMyMembership();
+    setMembership(m);
+    setMemberState('settled');
   }, []);
 
-  const enterRoom = useCallback((slug: string) => {
-    setRoomSlug(slug);
+  useEffect(() => {
+    if (!isSignedIn) { setMembership(null); setMemberState('settled'); return; }
+    void refreshMembership();
+  }, [isSignedIn, refreshMembership]);
+
+  /* A heartbeat, so a member who is present is not swept as stale. The
+     sweep is what keeps lobby counts from counting ghosts. */
+  useEffect(() => {
+    if (!membership) return;
+    const id = setInterval(() => void touchMembership(membership.roomId), 120_000);
+    return () => clearInterval(id);
+  }, [membership]);
+
+  const roomSlug = membership?.slug ?? '';
+
+  const enterRoom = useCallback(async (slug: string, code?: string) => {
+    const res = await joinRoom(slug, code);
+    if ('error' in res) return res;
     setDeckId(null);
-    try { localStorage.setItem('beatz:room', slug); } catch { /* not fatal */ }
-  }, []);
+    await refreshMembership();
+    return res;
+  }, [refreshMembership]);
+
+  const exitRoom = useCallback(async () => {
+    if (!membership) return;
+    await leaveRoom(membership.roomId);
+    setDeckId(null);
+    await refreshMembership();
+  }, [membership, refreshMembership]);
 
   const [dbRoom, setDbRoom] = useState<DbRoom | null>(null);
   useEffect(() => {
@@ -125,6 +163,7 @@ export default function DeckScreen() {
     if (!db) return;
     let cancelled = false;
     setDbRoom(null); // never show the previous room's shape while switching
+    if (!roomSlug) { setDbRoom(null); return; }
     db.from('rooms').select('*').eq('slug', roomSlug).single().then(({ data }) => {
       if (!cancelled && data) setDbRoom(data as DbRoom);
     });
@@ -144,6 +183,9 @@ export default function DeckScreen() {
   // has loaded, roomUuid is null and useRoom leaves the challenger line
   // empty rather than querying with the wrong identifier.
   const { mode, room, line, setHolding: pushHold } = useRoom({
+    // No membership, no socket. This is the gate that stops the tab from
+    // silently joining you to a room you never chose.
+    disabled: !membership,
     roomId: roomSlug,
     roomUuid: dbRoom?.id ?? null,
     playerId: profile.id,
@@ -310,6 +352,37 @@ export default function DeckScreen() {
     );
   }
 
+  /*
+    Not in a room: the tab is a lobby, not a deck.
+
+    This branch is the whole point of the membership work. Everything below
+    it -- the deck slot, hold-to-vibe, the hand, the queue -- assumes you
+    have joined something, and it used to render before you had.
+  */
+  if (memberState === 'checking') {
+    return (
+      <PhoneShell>
+        <div
+          style={{
+            padding: 'var(--sp-7)', textAlign: 'center',
+            font: '400 9px/1 var(--font-tele)', letterSpacing: '.16em',
+            color: 'var(--ink-25)',
+          }}
+        >
+          LOADING…
+        </div>
+      </PhoneShell>
+    );
+  }
+
+  if (!membership) {
+    return (
+      <PhoneShell>
+        <RoomLobby onEnter={enterRoom} isSignedIn={isSignedIn} />
+      </PhoneShell>
+    );
+  }
+
   return (
     <PhoneShell>
       <div style={{ padding: '4px 16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -418,19 +491,20 @@ export default function DeckScreen() {
             {dbRoom?.name ?? 'LOADING…'}
           </span>
           {/*
-            A pill with a glyph and a chevron, not a bare word in a box.
-            The chevron is what says "this opens something" -- on iOS that
-            affordance is carried by the shape, not by a label.
+            LEAVE, not ROOMS. Browsing moved to the lobby (this screen when
+            you have no membership), so the only room action from inside a
+            room is getting out of it. The host handing over rather than
+            closing the room is decided server-side in leave_room.
           */}
           <button
-            onClick={() => { setPickerOpen(true); play('tap'); haptic('light'); }}
+            onClick={() => { void exitRoom(); play('tap'); haptic('light'); }}
             data-press
-            aria-label="Switch or open a room"
+            aria-label="Leave this room"
             style={{
               flexShrink: 0,
               display: 'flex', alignItems: 'center', gap: 6,
               font: '600 11px/1 var(--font-body)', letterSpacing: '-0.01em',
-              padding: '9px 12px 9px 11px', borderRadius: 'var(--radius-pill)',
+              padding: '9px 13px', borderRadius: 'var(--radius-pill)',
               background: 'var(--glass-regular)',
               backdropFilter: 'var(--glass-blur-thin)',
               WebkitBackdropFilter: 'var(--glass-blur-thin)',
@@ -441,15 +515,11 @@ export default function DeckScreen() {
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden
                  stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              {/* Two overlapping panes — rooms you can move between */}
-              <rect x="3" y="6" width="12" height="12" rx="3.2" />
-              <path d="M8 6V4.8A1.8 1.8 0 0 1 9.8 3h9.4A1.8 1.8 0 0 1 21 4.8v9.4a1.8 1.8 0 0 1-1.8 1.8H18" />
+              <path d="M9 21H5.5A1.5 1.5 0 0 1 4 19.5v-15A1.5 1.5 0 0 1 5.5 3H9" />
+              <path d="m15 16 5-4-5-4" />
+              <path d="M20 12H9" />
             </svg>
-            ROOMS
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden
-                 stroke="var(--ink-40)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m9 6 6 6-6 6" />
-            </svg>
+            LEAVE
           </button>
         </div>
 
@@ -643,13 +713,6 @@ export default function DeckScreen() {
         </div>
       </div>
 
-      <RoomPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        currentSlug={roomSlug}
-        onEnter={enterRoom}
-        isSignedIn={isSignedIn}
-      />
     </PhoneShell>
   );
 }
