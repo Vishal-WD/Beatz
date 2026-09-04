@@ -107,3 +107,18 @@ export const vibeColor = (vibe: number): string => {
   if (hot > 0.4) return '#b98cff';
   return '#4ce3ff';
 };
+
+/**
+ * The CSS variable to use when rendering rarity as READING TEXT.
+ *
+ * `RARITY[r].color` is tuned to glow on a dark ground and must stay
+ * identical across themes, because it paints the frame and the badge — the
+ * card's identity, which CLAUDE.md §2 requires be recognisable at a glance
+ * and never theme-dependent.
+ *
+ * A scarcity percentage or a tier label is a different job: it has to be
+ * READ. On the cream light ground the epic gold measured 1.38:1. These
+ * variables are the same hue family, darkened for light mode only, so the
+ * frame never moves while the text stays legible.
+ */
+export const rarityTextVar = (r: Rarity): string => `var(--rarity-${r}-text)`;

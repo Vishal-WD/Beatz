@@ -6,91 +6,93 @@
  */
 
 :root {
-  /* Named "black" historically; it is a deep plum now. The name is kept
-     because every consumer references the token, not the colour, and
-     renaming it would touch dozens of files to say the same thing.
-     The panel sits 1.08:1 off the stage -- the same lift the old
-     #05050a/#0e0e18 pair had, so surfaces separate exactly as before. */
+  /* Stage ground and surfaces */
   --stage-black: #160f26;
-  --booth-panel: #1f1633;
+  --booth-panel: #1c1c1e;
 
-  --neon-pink: #ff2e88;
-  --neon-cyan: #4ce3ff;
-  --neon-gold: #ffd84d;
-  --neon-violet: #7b2bff;
-  --neon-mint: #7dffc3;
-  --ink: #f4f2ff;
+  /* Apple Music signature accents */
+  --neon-pink: #fa2d55;
+  --neon-cyan: #5ac8fa;
+  --neon-gold: #ffd60a;
+  --neon-violet: #af52de;
+  --neon-mint: #34c759;
+  --neon-rose: #ff375f;
 
-  --ink-60: rgba(244, 242, 255, 0.6);
-  --ink-40: rgba(244, 242, 255, 0.4);
-  --ink-25: rgba(244, 242, 255, 0.25);
-  --hairline: rgba(255, 255, 255, 0.07);
+  /* Apple Dynamic Type Inks */
+  --ink: #ffffff;
+  /*
+    The muted ramp carries almost every small label in the app (9px
+    letterspaced telemetry type), so it has to stay legible, not just look
+    quiet.
 
-  /* Subtle fill for an inset info box (EventDetailView's venueHint), distinct
-     from --hairline's border role -- a fill and a border on the same box
-     must stay two different values, even when they started out close. */
-  --surface-inset: rgba(255, 255, 255, 0.03);
+    The redesign set .35 / .18, which measure 2.89:1 and 1.63:1 on the plum
+    ground -- fainter than the values they replaced (3.57 / 2.13) and well
+    under the 4.5:1 body floor. Lifted so --ink-40 clears AA outright and
+    --ink-25 reaches the 3:1 large-text floor; the visual hierarchy between
+    the three steps is preserved, it just starts from a readable base.
+  */
+  --ink-60: rgba(235, 235, 245, 0.72);
+  --ink-40: rgba(235, 235, 245, 0.52);
+  --ink-25: rgba(235, 235, 245, 0.38);
+  --hairline: rgba(255, 255, 255, 0.12);
 
-  /* Fixed-contrast text for sitting on a neon/bright chip. Neon backgrounds
-     do not change between themes, so the text on top of them must not
-     either -- this is not "ink", it never inverts. */
-  --ink-on-neon: #0a0812;
+  /* Apple Inset Fill & Separators */
+  --surface-inset: rgba(255, 255, 255, 0.06);
 
-  /* Dark overlay for legibility over illustration (event posters etc.),
-     not the app's surface system -- the artwork it sits on is itself
-     theme-invariant, so this is too. */
+  /*
+    Rarity as TEXT.
+
+    lib/rarity.ts holds one colour per tier, tuned to glow on a dark ground,
+    and CLAUDE.md requires those to stay identical across themes so a
+    legendary is recognisable at a glance. That rule is about the FRAME and
+    the badge -- the identity of the card.
+
+    A percentage or a tier label rendered in the same hue is a different
+    job, and on cream #ffd84d measured 1.38:1. These are text-only variants
+    in the same hue family: the frame never changes, the reading text does.
+  */
+  --rarity-common-text: #c79a5e;
+  --rarity-rare-text: #cfd8e4;
+  --rarity-epic-text: #ffd84d;
+  --rarity-legendary-text: #ff8ac4;
+  /* Profile card's cyan axis, as reading text (TIER, the stat numbers).
+     PROFILE_FRAME.frame keeps the real cyan. */
+  --profile-text: #4ce3ff;
+
+  /*
+    Text sitting ON a bright fill -- a selected chip, an active tab, a
+    filled button. Those fills are var(--ink), which is #ffffff in this
+    palette, so this must be DARK or the label is white on white.
+
+    It was set to #ffffff in the redesign, which measured 1.00:1 -- the
+    active room-format buttons, rarity filters and event filters rendered
+    with invisible labels. The name is about the ROLE (text on a bright
+    fill), not about being light.
+  */
+  --ink-on-neon: #17131f;
   --scrim: rgba(0, 0, 0, 0.45);
-  /* A modal backdrop has to do more work than a poster overlay: it must
-     make the sheet on top of it readable, not just tint an image. Kept
-     separate from --scrim so darkening one does not darken the other. */
-  --scrim-modal: rgba(0, 0, 0, 0.66);
-
-  /* Fixed light text for sitting on --scrim over illustration. Pairs with
-     --scrim the way --ink-on-neon pairs with the neon chips: the poster
-     underneath never inverts with theme, so neither does the label on it. */
+  --scrim-modal: rgba(0, 0, 0, 0.72);
   --ink-fixed: #ffffff;
 
-  /* Sixth accent: the activity feed needed a distinct hue for "card
-     pulled" beyond the five reserved for rarity. Matches RARITY.legendary's
-     color in lib/rarity.ts, so a pulled-card notice reads as the same hue
-     as the card it names. Theme-invariant like the other neon-* tokens. */
-  --neon-rose: #ff8ac4;
+  /* Warm amber surface */
+  --gold-wash: rgba(255, 214, 10, 0.10);
+  --gold-wash-border: rgba(255, 214, 10, 0.35);
 
-  /* Gold-tinted info surface (warning boxes, "event room" callouts) --
-     the wash/border pair repeats verbatim across screens. This is a
-     surface, not a fixed accent: low-alpha gold reads as a warm tint on
-     the dark ground but goes near-invisible on light, so it gets its own
-     light-mode composition below rather than staying identical. */
-  --gold-wash: rgba(255, 216, 77, 0.08);
-  --gold-wash-border: rgba(255, 216, 77, 0.3);
+  /* Deck Vibe Hold Glow */
+  --vibe-hold-glow: linear-gradient(135deg, rgba(250, 45, 85, 0.35), rgba(90, 200, 250, 0.35));
 
-  /* Deck's "Hold to Vibe" active-press background -- a single reusable UI
-     state, not artwork. Also a surface: the 30%-alpha pink/cyan glow reads
-     on dark but goes muddy on light, so it gets a light-mode override too. */
-  --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.3), rgba(76, 227, 255, 0.3));
+  /* Card artwork viewport fallback */
+  --art-slot: linear-gradient(150deg, #1c1c1e, #121214);
+  --video-backdrop: #000000;
 
-  /* SongCardView's artwork viewport when a card has no cover art yet --
-     a fallback panel, styled to read as an empty art slot rather than a
-     literal surface, so it stays constant like the rarity foils it sits
-     beside. */
-  --art-slot: linear-gradient(150deg, #1a1a2e, #0d0d18);
+  /* Apple San Francisco Typography */
+  --font-title: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Helvetica Neue", sans-serif;
+  --font-heading: 'Barlow Condensed', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Helvetica Neue", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", "Helvetica Neue", sans-serif;
+  --font-stat: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", "Helvetica Neue", sans-serif;
+  --font-tele: ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* The YouTube IFrame host's letterbox backdrop. Video players are black
-     regardless of app theme -- this is a player convention, not a surface
-     that should invert to white in light mode. */
-  --video-backdrop: #000;
-
-  --font-title: Anton, Impact, sans-serif;
-  --font-stat: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --font-tele: 'JetBrains Mono', ui-monospace, monospace;
-  --font-body: Barlow, system-ui, -apple-system, sans-serif;
-
-  /* Barlow Condensed becomes the heading face (spec §7.1, Industry grammar).
-     --font-title stays defined below so unmigrated screens keep rendering. */
-  --font-heading: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-
-  /* Spacing scale. 4px base — every padding and gap comes from here, so the
-     eight different button paddings that exist today collapse to one set. */
+  /* Apple Spacing Scale */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -100,21 +102,32 @@
   --sp-7: 32px;
   --sp-8: 44px;
 
-  /* Square corners. Industry is a blueprint: objects are drawn, not softened.
-     Nothing in this system may exceed --radius-sm. */
+  /* Corner Radii */
   --radius-none: 0;
   --radius-sm: 2px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 9999px;
+  --radius-sheet: 24px;
 
-  /* Hairline is the primary surface treatment — objects are outlined,
-     not filled. */
+  /* Apple iOS Squircle Corner Radii */
+  --apple-radius-sm: 8px;
+  --apple-radius-md: 12px;
+  --apple-radius-lg: 18px;
+  --apple-radius-pill: 9999px;
+  --apple-radius-sheet: 24px;
+
+  /* Apple Translucent Glass & Hairline Borders */
   --border-hair: 1px solid var(--hairline);
   --border-strong: 1px solid rgba(255, 255, 255, 0.18);
+  --apple-glass: rgba(28, 28, 30, 0.78);
+  --apple-glass-blur: blur(24px) saturate(180%);
+  --apple-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --apple-sheet-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
 
-  /* Registration marks: the "+" crosshair at each corner of a framed object.
-     Industry's signature detail. */
   --mark-size: 7px;
 
-  /* Safe areas for the Android notch/gesture bar under Capacitor. */
+  /* Safe areas for the notch/gesture bar */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -133,16 +146,52 @@
   ground, the ink on it, and the lines between them invert.
 */
 :root[data-theme='light'] {
-  --stage-black: #f4f4f7;
+  /* Warm cream, not cool grey. A neutral #f4f4f7 next to the plum dark
+     ground reads as two unrelated apps; cream shares the dark palette's
+     warmth, so the toggle feels like one product changing state. */
+  --stage-black: #faf6ef;
   --booth-panel: #ffffff;
 
-  --ink: #0a0812;
-  --ink-60: rgba(10, 8, 18, 0.62);
-  --ink-40: rgba(10, 8, 18, 0.44);
-  --ink-25: rgba(10, 8, 18, 0.3);
+  /* Warm near-black rather than blue-black, for the same reason. */
+  --ink: #1c1917;
+  --ink-60: rgba(28, 25, 23, 0.74);
+  --ink-40: rgba(28, 25, 23, 0.64);
+  --ink-25: rgba(28, 25, 23, 0.48);
 
-  --hairline: rgba(10, 8, 18, 0.12);
-  --border-strong: 1px solid rgba(10, 8, 18, 0.24);
+  --hairline: rgba(28, 25, 23, 0.12);
+  --border-strong: 1px solid rgba(28, 25, 23, 0.26);
+
+  /*
+    THE ACCENTS MUST BE DARKENED HERE, and this is not a style preference.
+
+    The dark palette's neons are tuned to glow on a dark ground. On cream
+    they collapse: #ffd60a gold measured 1.29:1 against the light ground and
+    #5ac8fa cyan 1.73:1 -- both far under the 4.5:1 AA floor, and the reason
+    41 elements on /chart alone were unreadable in light mode.
+
+    Same hues, darkened until each clears AA on cream, on white, AND carries
+    white text when used as a fill. Rarity still reads as rarity because the
+    hue relationships are preserved; only the luminance moves.
+  */
+  --neon-pink: #d1003f;
+  --neon-cyan: #0071a4;
+  --neon-gold: #8a6d00;
+  --neon-violet: #7c3aed;
+  --neon-mint: #0f7a34;
+  --neon-rose: #c2185b;
+
+  /* Same hue families, darkened to read as text on cream. The frames and
+     badges in lib/rarity.ts are untouched -- only reading text moves. */
+  --rarity-common-text: #8a6134;
+  --rarity-rare-text: #5a6675;
+  --rarity-epic-text: #8a6d00;
+  --rarity-legendary-text: #b02a6e;
+  --profile-text: #0071a4;
+
+  /* Text sitting on those darkened fills. In dark mode the fills are bright
+     and this is near-black; here they are deep and it is white. It tracks
+     the FILL, which is exactly why it cannot be one fixed value. */
+  --ink-on-neon: #ffffff;
 
   /* Same role as dark's --surface-inset -- a faint fill distinct from
      --hairline's border role -- recomposed as a dark tint on the light
@@ -157,12 +206,17 @@
   --gold-wash-border: rgba(196, 138, 0, 0.55);
   --vibe-hold-glow: linear-gradient(120deg, rgba(255, 46, 136, 0.22), rgba(76, 227, 255, 0.22));
 
-  /* --ink-on-neon, --scrim, --scrim-modal, --ink-fixed, --neon-rose,
-     --art-slot and --video-backdrop are deliberately absent here: every one
-     of them sits on (or is) a neon/bright/illustrated/fixed surface that
-     does not itself change with theme, so the value must not change either.
-     --scrim-modal darkens whatever is behind a sheet, and that job is the
-     same in both palettes. Same names, same values, both palettes. */
+  /* --scrim, --scrim-modal, --ink-fixed, --art-slot and --video-backdrop
+     are deliberately absent here: each sits on (or is) an illustrated or
+     fixed surface that does not itself change with theme, so the value must
+     not change either. --scrim-modal darkens whatever is behind a sheet,
+     and that job is the same in both palettes.
+
+     --ink-on-neon and the --neon-* accents are NOT in that group any more.
+     They are redefined above because the fills they describe DO change:
+     dark mode fills bright and needs dark text, light mode fills deep and
+     needs white. Treating them as invariant is what made the light theme
+     unreadable. */
 }
 
 * {
@@ -306,15 +360,32 @@ button {
   }
 }
 
-/* Themed interaction states for UI primitives (spec §7.1).
-   data-ui marks an element as belonging to the primitive layer. */
+/* Apple iOS tactile interaction physics */
+[data-ui='button'] {
+  transition: transform 0.16s cubic-bezier(0.25, 1, 0.5, 1), background 0.18s ease, opacity 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
 [data-ui='button']:hover:not(:disabled) {
-  filter: brightness(1.12);
+  filter: brightness(1.08);
 }
 [data-ui='button']:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 [data-ui='button']:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Apple Music Live Dynamic Equalizer Bars */
+@keyframes appleEqualizer {
+  0%   { transform: scaleY(0.25); }
+  50%  { transform: scaleY(1); }
+  100% { transform: scaleY(0.25); }
+}
+
+/* Kinetic shockwave pulse for active Vibe button */
+@keyframes vibePulse {
+  0%   { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+

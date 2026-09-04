@@ -29,28 +29,62 @@ export function StatusBar() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: `calc(6px + var(--safe-top)) 16px 6px`,
-        font: '500 11px/1 var(--font-tele)',
-        color: 'var(--ink-40)',
-        letterSpacing: '.08em',
+        padding: `calc(8px + var(--safe-top)) 20px 8px`,
+        font: '600 13px/1 var(--font-body)',
+        color: 'var(--ink)',
+        letterSpacing: '-0.01em',
       }}
     >
-      <span>4:12</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* A party app that makes noise must always offer a way to stop it. */}
+      <span>9:41</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Apple iOS Mute Toggle */}
         <button
           onClick={() => setMuted(toggleMute())}
           aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
           aria-pressed={muted}
           style={{
-            font: '500 11px/1 var(--font-tele)',
-            color: muted ? 'var(--neon-pink)' : 'var(--ink-40)',
-            padding: '2px 4px',
+            font: '500 12px/1 var(--font-body)',
+            color: muted ? 'var(--neon-pink)' : 'var(--ink-60)',
+            padding: '2px 6px',
+            borderRadius: 'var(--radius-pill)',
+            background: muted ? 'var(--surface-inset)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
           {muted ? '🔇' : '🔊'}
         </button>
-        <span>▮▮▮ 82%</span>
+        {/* Apple iOS Battery Icon */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <div
+            style={{
+              width: 22,
+              height: 11,
+              borderRadius: 3.5,
+              border: '1.2px solid var(--ink-40)',
+              padding: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '75%',
+                height: '100%',
+                borderRadius: 1.5,
+                background: 'var(--ink)',
+              }}
+            />
+          </div>
+          <div
+            style={{
+              width: 1.5,
+              height: 4,
+              borderRadius: '0 1px 1px 0',
+              background: 'var(--ink-40)',
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -62,9 +96,11 @@ export function TabBar() {
     <nav
       style={{
         display: 'flex',
-        borderTop: '1px solid var(--hairline)',
-        background: 'var(--booth-panel)',
-        paddingBottom: 'var(--safe-bottom)',
+        borderTop: 'var(--border-hair)',
+        background: 'var(--apple-glass)',
+        backdropFilter: 'var(--apple-glass-blur)',
+        WebkitBackdropFilter: 'var(--apple-glass-blur)',
+        paddingBottom: 'calc(4px + var(--safe-bottom))',
         flexShrink: 0,
       }}
     >
@@ -81,17 +117,13 @@ export function TabBar() {
               flexDirection: 'column',
               alignItems: 'center',
               gap: 4,
-              // Five tabs (down from six) give each one more width, so the
-              // label no longer has to carry the tab alone at 9px — the icon
-              // above it does the at-a-glance identification.
-              padding: '10px 0 9px',
+              padding: '8px 0 6px',
               textAlign: 'center',
-              font: '700 9px/1 var(--font-tele)',
-              letterSpacing: '.1em',
+              font: active ? '600 10px/1.2 var(--font-body)' : '500 10px/1.2 var(--font-body)',
+              letterSpacing: '-0.01em',
               textDecoration: 'none',
               color: active ? 'var(--neon-pink)' : 'var(--ink-40)',
-              borderTop: `2px solid ${active ? 'var(--neon-pink)' : 'transparent'}`,
-              marginTop: -1,
+              transition: 'color 0.16s ease, transform 0.16s ease',
             }}
           >
             <TabIcon name={t.icon} active={active} />

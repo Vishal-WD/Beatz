@@ -12,7 +12,7 @@ import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { Avatar } from '@/components/Avatar';
 import { AccountSettings } from '@/components/AccountSettings';
-import { PROFILE_FRAME, RARITY, avatarFor } from '@/lib/rarity';
+import { PROFILE_FRAME, RARITY, avatarFor, rarityTextVar } from '@/lib/rarity';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
 import { useTheme } from '@/lib/useTheme';
@@ -171,7 +171,7 @@ export default function ProfileScreen() {
                 <div
                   style={{
                     font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em',
-                    color: PROFILE_FRAME.color, marginTop: 5,
+                    color: 'var(--profile-text)', marginTop: 5,
                   }}
                 >
                   TIER · {profile.tier}
@@ -316,7 +316,11 @@ export default function ProfileScreen() {
             </button>
             {RARITY_CHIPS.map((r) => {
               const on = rarityFilter === r;
+              // Fill keeps the true rarity colour (identity); the unselected
+              // LABEL uses the text-safe variant, which is the same hue but
+              // readable on cream. See rarityTextVar.
               const col = RARITY[r].color;
+              const textCol = rarityTextVar(r);
               return (
                 <button
                   key={r}
@@ -326,7 +330,7 @@ export default function ProfileScreen() {
                     padding: '7px 10px', borderRadius: 6,
                     background: on ? col : 'var(--hairline)',
                     border: `1px solid ${on ? col : 'var(--hairline)'}`,
-                    color: on ? 'var(--ink-on-neon)' : col,
+                    color: on ? 'var(--ink-on-neon)' : textCol,
                   }}
                 >
                   {RARITY[r].label} · {rarityCounts[r]}
@@ -502,7 +506,7 @@ function ProfileStat({ label, value }: { label: string; value: number | string }
       >
         {label}
       </div>
-      <div style={{ font: '700 26px/1 var(--font-stat)', color: PROFILE_FRAME.color, marginTop: 5 }}>
+      <div style={{ font: '700 26px/1 var(--font-stat)', color: 'var(--profile-text)', marginTop: 5 }}>
         {value}
       </div>
     </div>

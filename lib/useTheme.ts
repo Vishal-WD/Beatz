@@ -28,7 +28,7 @@ const KEY = 'auxwars:theme';
 export const STAGE_BLACK_META = '#160f26';
 
 /** Mirrors --stage-black's value under :root[data-theme='light']. */
-export const STAGE_BLACK_META_LIGHT = '#f4f4f7';
+export const STAGE_BLACK_META_LIGHT = '#faf6ef';
 
 export function useTheme() {
   // Dark-first: the app's identity is a dark stage, and a light default

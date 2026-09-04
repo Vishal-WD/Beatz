@@ -97,7 +97,7 @@ export function SongCardView({
         width: s.w,
         height: s.h,
         padding: 2,
-        borderRadius: 14,
+        borderRadius: 16,
         background: r.frame,
         position: 'relative',
         transform: `perspective(700px) rotateY(${rotY}deg) rotateX(${rotX}deg)`,
@@ -105,6 +105,7 @@ export function SongCardView({
         transition: tilt.active ? 'none' : 'transform .35s ease',
         cursor: onClick ? 'pointer' : 'default',
         flexShrink: 0,
+        boxShadow: 'var(--apple-card-shadow)',
         ...style,
       }}
     >
@@ -112,7 +113,7 @@ export function SongCardView({
         style={{
           width: '100%',
           height: '100%',
-          borderRadius: 12,
+          borderRadius: 14,
           background: 'var(--booth-panel)',
           overflow: 'hidden',
           display: 'flex',

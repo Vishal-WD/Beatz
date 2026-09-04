@@ -15,15 +15,15 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const PAD: Record<ButtonSize, string> = {
-  sm: 'var(--sp-2) var(--sp-3)',
-  md: 'var(--sp-3) var(--sp-4)',
-  lg: 'var(--sp-4) var(--sp-5)',
+  sm: '6px 12px',
+  md: '10px 18px',
+  lg: '14px 24px',
 };
 
 const FONT: Record<ButtonSize, string> = {
-  sm: "700 8px/1 var(--font-tele)",
-  md: "700 10px/1 var(--font-tele)",
-  lg: "700 11px/1 var(--font-tele)",
+  sm: '600 12px/1.2 var(--font-body)',
+  md: '600 13px/1.2 var(--font-body)',
+  lg: '600 15px/1.2 var(--font-body)',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -47,12 +47,28 @@ export function Button({
 
   const variantStyle =
     variant === 'primary'
-      ? { background: fill, color: 'var(--ink-on-neon)', border: '1px solid transparent' }
+      ? {
+          background: fill,
+          color: 'var(--ink-on-neon)',
+          border: '1px solid transparent',
+        }
       : variant === 'danger'
-        ? { background: 'transparent', color: 'var(--neon-gold)', border: 'var(--border-strong)' }
+        ? {
+            background: 'var(--surface-inset)',
+            color: 'var(--neon-gold)',
+            border: 'var(--border-strong)',
+          }
         : variant === 'ghost'
-          ? { background: 'transparent', color: 'var(--ink-60)', border: '1px solid transparent' }
-          : { background: 'transparent', color: 'var(--ink-60)', border: 'var(--border-strong)' };
+          ? {
+              background: 'transparent',
+              color: 'var(--ink-60)',
+              border: '1px solid transparent',
+            }
+          : {
+              background: 'var(--surface-inset)',
+              color: 'var(--ink)',
+              border: 'var(--border-hair)',
+            };
 
   return (
     <button
@@ -63,14 +79,15 @@ export function Button({
       style={{
         padding: PAD[size],
         font: FONT[size],
-        letterSpacing: '.16em',
+        letterSpacing: '-0.01em',
         width: block ? '100%' : undefined,
         cursor: 'pointer',
-        transition: 'background .18s ease, border-color .18s ease, opacity .18s ease',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 'var(--sp-2)',
         ...variantStyle,
         ...style,
-        // Square corners are a hard global constraint (spec §7.1). Re-assert
-        // borderRadius last so callers cannot break this invariant.
         borderRadius: 'var(--radius-sm)',
       }}
       {...rest}

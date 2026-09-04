@@ -32,13 +32,15 @@ export function Badge({ children, tone = 'neutral', accent }: BadgeProps) {
     <span
       data-ui="badge"
       style={{
-        display: 'inline-block',
-        padding: 'var(--sp-1) var(--sp-2)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '3px 8px',
         borderRadius: 'var(--radius-sm)',
         border: `1px solid ${colour}`,
+        background: 'var(--surface-inset)',
         color: colour,
-        font: "700 7px/1 var(--font-tele)",
-        letterSpacing: '.14em',
+        font: '600 9px/1.1 var(--font-body)',
+        letterSpacing: '0.02em',
         whiteSpace: 'nowrap',
       }}
     >

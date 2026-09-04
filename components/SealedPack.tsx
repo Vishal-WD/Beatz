@@ -55,9 +55,10 @@ export function SealedPack({ spotlight, visible, torn, cost, size }: Props) {
             transform: 'translateX(-50%)',
             width: 176,
             height: 244,
-            borderRadius: 14,
-            background: 'linear-gradient(150deg,#1b1130,#3b1050 55%,#12081f)',
-            border: '1px solid rgba(255,255,255,.14)',
+            borderRadius: 18,
+            background: 'linear-gradient(145deg, #1c1c1e 0%, #2c1228 55%, #121214 100%)',
+            border: '1px solid rgba(255,255,255,.16)',
+            boxShadow: '0 24px 60px -10px rgba(250, 45, 85, 0.35), inset 0 0 20px rgba(255, 255, 255, 0.08)',
             clipPath: torn ? TORN_CLIP : undefined,
             display: 'flex',
             flexDirection: 'column',
@@ -70,10 +71,11 @@ export function SealedPack({ spotlight, visible, torn, cost, size }: Props) {
         >
           <span
             style={{
-              font: '400 34px/0.92 var(--font-title)',
+              font: '700 32px/0.95 var(--font-title)',
               textTransform: 'uppercase',
               textAlign: 'center',
-              background: 'linear-gradient(92deg,#fff,#ffd84d)',
+              letterSpacing: '-0.02em',
+              background: 'linear-gradient(135deg, #ffffff 20%, #fa2d55 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
@@ -82,7 +84,7 @@ export function SealedPack({ spotlight, visible, torn, cost, size }: Props) {
             <br />
             Pack
           </span>
-          <span style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.18em', color: 'var(--ink-40)' }}>
+          <span style={{ font: '600 10px/1.2 var(--font-body)', letterSpacing: '0.04em', color: 'var(--ink-40)' }}>
             {cost} DROPS · {size} CARDS
           </span>
         </div>

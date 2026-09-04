@@ -26,9 +26,10 @@ export function Field({ label, value, onChange, ...rest }: FieldProps) {
         htmlFor={id}
         style={{
           display: 'block',
-          marginBottom: 'var(--sp-2)',
-          font: "400 8px/1 var(--font-tele)",
-          letterSpacing: '.18em',
+          marginBottom: 6,
+          font: '600 11px/1.2 var(--font-body)',
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
           color: 'var(--ink-40)',
         }}
       >
@@ -42,19 +43,14 @@ export function Field({ label, value, onChange, ...rest }: FieldProps) {
         {...rest}
         style={{
           width: '100%',
-          padding: 'var(--sp-3)',
-          background: 'var(--booth-panel)',
+          padding: '12px 14px',
+          background: 'var(--surface-inset)',
           border: 'var(--border-strong)',
           color: 'var(--ink)',
-          font: "400 14px/1 var(--font-body)",
-          // {...rest} above spreads before this whole `style` object, so
-          // last-attribute-wins means a caller-supplied `style` prop is
-          // replaced wholesale here, not merged — their padding, background
-          // and width would vanish silently along with borderRadius. That's
-          // deliberate: the field's appearance is closed. This differs from
-          // Button, where caller styles are merged and only borderRadius is
-          // protected.
-          borderRadius: 'var(--radius-sm)',
+          font: '400 15px/1.3 var(--font-body)',
+          borderRadius: 'var(--radius-md)',
+          outline: 'none',
+          transition: 'border-color 0.16s ease',
         }}
       />
     </div>

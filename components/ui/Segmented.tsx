@@ -27,11 +27,19 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={label}
-      style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}
+      style={{
+        display: 'inline-flex',
+        gap: 2,
+        padding: 3,
+        borderRadius: 'var(--radius-pill)',
+        background: 'var(--surface-inset)',
+        border: 'var(--border-hair)',
+        flexWrap: 'wrap',
+      }}
     >
       {options.map((o) => {
         const on = o === value;
-        const accent = accentFor?.(o) ?? 'var(--ink)';
+        const accent = accentFor?.(o) ?? 'var(--neon-pink)';
         return (
           <button
             key={o}
@@ -40,14 +48,15 @@ export function Segmented<T extends string>({
             aria-pressed={on}
             onClick={() => onChange(o)}
             style={{
-              padding: 'var(--sp-2) var(--sp-3)',
-              borderRadius: 'var(--radius-sm)',
-              border: `1px solid ${on ? accent : 'var(--hairline)'}`,
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid transparent',
               background: on ? accent : 'transparent',
-              color: on ? 'var(--ink-on-neon)' : accent,
-              font: "700 8px/1 var(--font-tele)",
-              letterSpacing: '.14em',
+              color: on ? 'var(--ink-on-neon)' : 'var(--ink-60)',
+              font: '600 12px/1.2 var(--font-body)',
+              letterSpacing: '-0.01em',
               cursor: 'pointer',
+              transition: 'background 0.16s ease, color 0.16s ease',
             }}
           >
             {o}

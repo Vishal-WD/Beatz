@@ -88,6 +88,8 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
         inset: 0,
         zIndex: 60,
         background: 'var(--scrim-modal)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
@@ -105,19 +107,34 @@ export function Sheet({ open, onClose, title, children }: SheetProps) {
           maxWidth: 480,
           maxHeight: '86dvh',
           overflowY: 'auto',
-          background: 'var(--booth-panel)',
-          borderTop: 'var(--border-strong)',
-          borderRadius: 'var(--radius-none)',
-          padding: 'var(--sp-5)',
-          paddingBottom: 'calc(var(--sp-5) + var(--safe-bottom))',
+          background: 'var(--apple-glass)',
+          backdropFilter: 'var(--apple-glass-blur)',
+          WebkitBackdropFilter: 'var(--apple-glass-blur)',
+          borderTop: 'var(--border-hair)',
+          borderTopLeftRadius: 'var(--radius-sheet)',
+          borderTopRightRadius: 'var(--radius-sheet)',
+          boxShadow: 'var(--apple-sheet-shadow)',
+          padding: '16px 20px',
+          paddingBottom: 'calc(20px + var(--safe-bottom))',
         }}
       >
+        {/* Apple iOS Grabber Handle */}
+        <div
+          aria-hidden="true"
+          style={{
+            width: 36,
+            height: 5,
+            borderRadius: 'var(--radius-pill)',
+            background: 'var(--ink-25)',
+            margin: '0 auto 16px',
+          }}
+        />
         <div
           style={{
-            font: "400 20px/1 var(--font-heading)",
-            textTransform: 'uppercase',
-            letterSpacing: '.02em',
+            font: '700 20px/1.2 var(--font-heading)',
+            letterSpacing: '-0.02em',
             marginBottom: 'var(--sp-4)',
+            color: 'var(--ink)',
           }}
         >
           {title}

@@ -84,10 +84,11 @@ export function NowPlaying({
   return (
     <div
       style={{
-        borderRadius: 14,
+        borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
         background: 'var(--booth-panel)',
-        border: `1px solid ${playing ? color : 'var(--hairline)'}`,
+        border: `1px solid ${playing ? color : 'var(--border-hair)'}`,
+        boxShadow: 'var(--apple-card-shadow)',
         transition: 'border-color .3s ease',
       }}
     >
@@ -126,38 +127,29 @@ export function NowPlaying({
         </div>
       </div>
 
-      <div style={{ padding: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ padding: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
             onClick={() => {
-              // `toggle()` is only meaningful once the API has constructed the
-              // player. `ready` gates the button, so by the time this fires the
-              // player exists — expanding is then purely about visibility.
               setExpanded(true);
               toggle();
             }}
             aria-label={playing ? `Pause ${card.title}` : `Play ${card.title}`}
-            /*
-              Only the YouTube path has a readiness gate. An <audio> element is
-              usable the moment it exists, and on the preview path no YouTube
-              player is ever constructed (videoId is null), so `ready` would
-              stay false forever and disable the button on the majority of the
-              pool — every chart-sourced card.
-            */
             disabled={usePreview ? false : !ready && !error}
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 13,
+              width: 44,
+              height: 44,
+              borderRadius: 'var(--radius-pill)',
               flexShrink: 0,
               display: 'grid',
               placeItems: 'center',
-              background: playing ? color : 'var(--hairline)',
-              border: playing ? `1px solid ${color}` : 'var(--border-strong)',
+              background: playing ? 'var(--neon-pink)' : 'var(--surface-inset)',
+              border: playing ? '1px solid var(--neon-pink)' : 'var(--border-strong)',
               color: playing ? 'var(--ink-on-neon)' : 'var(--ink)',
               font: '400 15px/1 var(--font-body)',
               opacity: !usePreview && !ready && !error ? 0.45 : 1,
-              transition: 'background .2s ease',
+              transition: 'background .2s ease, transform .12s ease',
+              boxShadow: playing ? '0 4px 12px rgba(250, 45, 85, 0.4)' : undefined,
             }}
           >
             {playing ? '❚❚' : '▶'}
@@ -166,21 +158,22 @@ export function NowPlaying({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                font: '400 17px/1.05 var(--font-title)',
-                textTransform: 'uppercase',
+                font: '600 15px/1.2 var(--font-heading)',
+                letterSpacing: '-0.02em',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                color: 'var(--ink)',
               }}
             >
               {card.title}
             </div>
             <div
               style={{
-                font: '500 8px/1 var(--font-tele)',
-                letterSpacing: '.1em',
-                color: 'var(--ink-40)',
-                marginTop: 5,
+                font: '400 13px/1.2 var(--font-body)',
+                letterSpacing: '-0.01em',
+                color: 'var(--ink-60)',
+                marginTop: 3,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -191,10 +184,10 @@ export function NowPlaying({
             {shoutout && (
               <div
                 style={{
-                  font: '400 7px/1 var(--font-tele)',
-                  letterSpacing: '.12em',
+                  font: '500 10px/1 var(--font-body)',
+                  letterSpacing: '0.04em',
                   color: 'var(--neon-cyan)',
-                  marginTop: 5,
+                  marginTop: 4,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -205,13 +198,58 @@ export function NowPlaying({
             )}
           </div>
 
+          {/* Apple Music Dynamic Equalizer Bars when playing */}
+          {playing && (
+            <div
+              aria-hidden="true"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 2.5,
+                height: 16,
+                padding: '0 4px',
+              }}
+            >
+              <span
+                style={{
+                  width: 3,
+                  height: 16,
+                  borderRadius: 1.5,
+                  background: 'var(--neon-pink)',
+                  animation: 'appleEqualizer 0.7s ease-in-out infinite alternate',
+                  transformOrigin: 'bottom',
+                }}
+              />
+              <span
+                style={{
+                  width: 3,
+                  height: 16,
+                  borderRadius: 1.5,
+                  background: 'var(--neon-pink)',
+                  animation: 'appleEqualizer 0.5s ease-in-out 0.2s infinite alternate',
+                  transformOrigin: 'bottom',
+                }}
+              />
+              <span
+                style={{
+                  width: 3,
+                  height: 16,
+                  borderRadius: 1.5,
+                  background: 'var(--neon-pink)',
+                  animation: 'appleEqualizer 0.8s ease-in-out 0.4s infinite alternate',
+                  transformOrigin: 'bottom',
+                }}
+              />
+            </div>
+          )}
+
           {!compact && (
             <span
               style={{
-                font: '700 7px/1 var(--font-tele)',
-                letterSpacing: '.12em',
-                padding: '4px 6px',
-                borderRadius: 4,
+                font: '600 10px/1 var(--font-body)',
+                letterSpacing: '0.02em',
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-pill)',
                 background: r.badgeBg,
                 color: r.badgeColor,
                 flexShrink: 0,
@@ -223,12 +261,12 @@ export function NowPlaying({
         </div>
 
         {/* Scrubber — display only; YouTube owns transport controls. */}
-        <div style={{ marginTop: 11 }}>
+        <div style={{ marginTop: 12 }}>
           <div
             style={{
-              height: 3,
-              borderRadius: 2,
-              background: 'var(--hairline)',
+              height: 4,
+              borderRadius: 'var(--radius-pill)',
+              background: 'var(--surface-inset)',
               overflow: 'hidden',
             }}
           >
@@ -236,7 +274,7 @@ export function NowPlaying({
               style={{
                 width: `${pct}%`,
                 height: '100%',
-                background: color,
+                background: playing ? 'var(--neon-pink)' : color,
                 transition: 'width .5s linear',
               }}
             />
@@ -246,8 +284,8 @@ export function NowPlaying({
               display: 'flex',
               justifyContent: 'space-between',
               marginTop: 6,
-              font: '400 8px/1 var(--font-tele)',
-              letterSpacing: '.08em',
+              font: '500 10px/1 var(--font-tele)',
+              letterSpacing: '0.02em',
               color: 'var(--ink-40)',
               fontVariantNumeric: 'tabular-nums',
             }}

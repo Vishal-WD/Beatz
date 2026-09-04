@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { useSound } from '@/lib/useSound';
-import { RARITY } from '@/lib/rarity';
+import { RARITY, rarityTextVar } from '@/lib/rarity';
 import { fetchChartRows } from '@/lib/supabase';
 import { buildChart, type ChartEntry, type ChartRow } from '@/lib/domain/chart';
 import { EmptyState } from '@/components/ui';
@@ -153,7 +153,7 @@ function ChartRowView({
         </span>
 
         <span style={{ textAlign: 'right', flexShrink: 0 }}>
-          <span style={{ display: 'block', font: '700 17px/1 var(--font-stat)', color: r.color }}>
+          <span style={{ display: 'block', font: '700 17px/1 var(--font-stat)', color: rarityTextVar(entry.rarity) }}>
             {pct}%
           </span>
           <span style={{ display: 'block', font: '400 7px/1 var(--font-tele)', letterSpacing: '.12em', color: 'var(--ink-40)', marginTop: 3 }}>
