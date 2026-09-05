@@ -590,8 +590,19 @@ export default function DeckScreen() {
               because at this size it is an identifier, not the thing you
               read stats off -- those are in the player beside it.
             */
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%', minWidth: 0 }}>
+              {/*
+                minWidth:0 on the ROW, not just its children.
+
+                A flex item defaults to min-width:auto, which means it refuses
+                to shrink below its content. The player's title and credit
+                line are long, so the row sized to THEM -- 543px inside a
+                358px slot -- and the ellipsis on the text below never got a
+                chance to apply, because nothing was ever narrow enough to
+                trigger it. The overflow then spilled past the panel's
+                rounded border.
+              */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
                 <SongCardView card={deckCard} size="sm" showSerial />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <NowPlaying

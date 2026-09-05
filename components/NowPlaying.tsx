@@ -96,6 +96,12 @@ export function NowPlaying({
       style={{
         borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
+        // The panel must never be wider than whatever it is placed in. On the
+        // deck it sits beside the card art in a flex row, and without this it
+        // sized to its own longest line instead — the title and the shoutout
+        // credit — and spilled past the slot's rounded border.
+        minWidth: 0,
+        maxWidth: '100%',
         background: 'var(--booth-panel)',
         border: `1px solid ${playing ? color : 'var(--border-hair)'}`,
         boxShadow: 'var(--apple-card-shadow)',
@@ -103,7 +109,7 @@ export function NowPlaying({
       }}
     >
       <div style={{ padding: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <button
             onClick={toggle}
             disabled={!available}
