@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSound } from '@/lib/useSound';
+import { useAuth } from '@/lib/useAuth';
+import { usePresence } from '@/lib/usePresence';
 import { TabIcon } from '@/components/ui/TabIcon';
 
 export const TABS = [
@@ -145,6 +147,11 @@ export function TabBar() {
 
 /** Fixed-viewport shell — the game surface never scrolls as a document. */
 export function PhoneShell({ children }: { children: React.ReactNode }) {
+  /* One heartbeat for the whole app, so the online dot means "has Beatz
+     open" rather than "is on this particular screen". */
+  const { state } = useAuth();
+  usePresence(state === 'signed-in');
+
   return (
     <div
       style={{

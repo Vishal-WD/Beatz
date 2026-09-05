@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Field, EmptyState } from '@/components/ui';
+import { PeopleSearch } from '@/components/PeopleSearch';
 import { FORMATS, type FormatId } from '@/lib/domain/formats';
 import { micModesFor, usesMic, type MicMode } from '@/lib/domain/mic';
 import { createRoom, fetchOpenRooms, fetchRoomCounts, type DbRoom } from '@/lib/supabase';
@@ -195,6 +196,10 @@ export function RoomLobby({
       </div>
 
       {error && <Err>{error}</Err>}
+
+      {/* Finding a person and finding a room are the same intention, so the
+          search sits above the list rather than on a screen of its own. */}
+      {isSignedIn && <PeopleSearch />}
 
       {rooms !== null && rooms.length === 0 && (
         <EmptyState title="NO ROOMS OPEN" hint="Open one and it shows up here." />
