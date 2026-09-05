@@ -87,6 +87,13 @@ export default function PacksScreen() {
 
   // Tearing IS the purchase. Picking a tile both spends the Drops and
   // starts the tear; everything after is reveal.
+  /*
+    Which tier is awaiting confirmation. Spending Drops is irreversible and
+    the tiles are large tap targets sitting right under a thumb, so a stray
+    touch used to buy a 900-Drop Headliner outright.
+  */
+  const [confirming, setConfirming] = useState<PackTier | null>(null);
+
   const selectTier = useCallback((tier: PackTier) => {
     if (pack.busy || !pack.affordable(tier)) return;
     play('packTear');
@@ -278,7 +285,7 @@ export default function PacksScreen() {
                   key={def.id}
                   type="button"
                   disabled={disabled}
-                  onClick={() => selectTier(def.id)}
+                  onClick={() => { setConfirming(def.id); play('tap'); haptic('light'); }}
                   data-press
                   data-rise
                   style={{
@@ -345,6 +352,87 @@ export default function PacksScreen() {
               );
             })}
           </div>
+
+          {/*
+            Confirm before spending. Drops are earn-only (CLAUDE.md 3), so a
+            mis-tap costs real progress that cannot be bought back — and the
+            tiles are full-width targets under a thumb. The sheet states the
+            price and what the balance becomes, because "are you sure" without
+            the numbers is not actually informed consent.
+          */}
+          {confirming && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Confirm opening the ${PACKS[confirming].label} pack`}
+              onClick={() => setConfirming(null)}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 80,
+                background: 'var(--scrim-modal)',
+                display: 'grid', placeItems: 'end center',
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%', maxWidth: 480,
+                  borderTopLeftRadius: 'var(--radius-sheet)',
+                  borderTopRightRadius: 'var(--radius-sheet)',
+                  background: 'var(--glass-thick)',
+                  backdropFilter: 'var(--glass-blur-thick)',
+                  WebkitBackdropFilter: 'var(--glass-blur-thick)',
+                  borderTop: 'var(--border-hair)',
+                  boxShadow: 'var(--glass-edge)',
+                  padding: '20px 20px calc(20px + var(--safe-bottom))',
+                  display: 'flex', flexDirection: 'column', gap: 14,
+                }}
+              >
+                <div style={{ font: '400 22px/1 var(--font-title)', textTransform: 'uppercase', color: 'var(--ink)' }}>
+                  Open {PACKS[confirming].label}?
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ font: '400 11px/1.5 var(--font-body)', color: 'var(--ink-60)' }}>
+                    {PACKS[confirming].size} cards
+                    {PACKS[confirming].guarantee && ' · guaranteed epic or better'}
+                  </span>
+                  <DropsAmount value={PACKS[confirming].cost} size={14} />
+                </div>
+
+                <div style={{ font: '400 10px/1.5 var(--font-body)', color: 'var(--ink-40)' }}>
+                  You have {pack.drops.toLocaleString()} — this leaves{' '}
+                  {(pack.drops - PACKS[confirming].cost).toLocaleString()}.
+                </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    data-press
+                    onClick={() => setConfirming(null)}
+                    style={{
+                      flex: 1, font: '600 12px/1 var(--font-body)',
+                      padding: '14px 0', borderRadius: 'var(--radius-pill)',
+                      background: 'var(--surface-inset)', border: 'var(--border-hair)',
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    data-press
+                    onClick={() => { const t = confirming; setConfirming(null); selectTier(t); }}
+                    style={{
+                      flex: 1, font: '700 12px/1 var(--font-body)',
+                      padding: '14px 0', borderRadius: 'var(--radius-pill)',
+                      background: 'var(--neon-pink)', border: '1px solid transparent',
+                      color: 'var(--ink-on-neon)',
+                    }}
+                  >
+                    OPEN IT
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!pack.isSignedIn && (
             <Link

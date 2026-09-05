@@ -24,20 +24,25 @@ import { useHaptics } from '@/lib/useHaptics';
 const SEG = 360 / WHEEL.length;
 
 /**
- * Colour per segment, warming as the prize climbs.
+ * Colour per prize.
  *
- * A conic-gradient can only take flat colour stops per slice, so depth comes
- * from a radial sheen laid over the whole wheel rather than from per-slice
- * gradients. Alternating light/dark within a tier keeps neighbouring slices
- * of the same prize (there are two 100s) from merging into one wide band.
+ * One colour per VALUE, not per index. The first version alternated a light
+ * and dark shade within each tier to stop neighbouring slices merging — but
+ * that made the two 100s look like different prizes, and washed the 1000 out
+ * to a pale yellow that read as less valuable than the 500 beside it. The
+ * spokes already separate adjacent slices, so the alternation was solving a
+ * problem that no longer existed.
+ *
+ * The ladder now reads by colour alone: gold is the jackpot, pink is the
+ * near-miss, and the blank is plainly inert.
  */
-function segTone(value: number, i: number): string {
-  const alt = i % 2 === 1;
-  if (value >= 1000) return alt ? '#ffe27a' : 'var(--neon-gold)';
-  if (value >= 500) return alt ? '#ff5c88' : 'var(--neon-pink)';
-  if (value >= 250) return alt ? '#c77dff' : 'var(--neon-violet)';
-  if (value > 0) return alt ? '#7ad4ff' : 'var(--neon-cyan)';
-  return alt ? 'rgba(120,116,140,.85)' : 'rgba(96,92,112,.85)';
+function segTone(value: number): string {
+  if (value >= 1000) return '#ffc400';   // gold — the jackpot
+  if (value >= 500) return '#ff2e6b';    // hot pink
+  if (value >= 250) return '#a855f7';    // violet
+  if (value >= 100) return '#22b8ef';    // cyan
+  if (value > 0) return '#4ad9a4';       // mint, the smallest win
+  return '#4a4658';                      // blank: flat, unmistakably nothing
 }
 
 export function SpinWheel({
@@ -179,27 +184,30 @@ export function SpinWheel({
               ? 'transform 4s cubic-bezier(0.16, 1, 0.3, 1)'
               : 'none',
             background: `conic-gradient(${WHEEL.map((s, i) => {
-              const tone = segTone(s.value, i);
+              const tone = segTone(s.value);
               return `${tone} ${i * SEG}deg ${(i + 1) * SEG}deg`;
             }).join(', ')})`,
           }}
         >
-          {/* Spokes: a hairline between slices, so adjacent segments read as
-              separate wedges instead of one continuous sweep. */}
-          {WHEEL.map((_, i) => (
-            <span
-              key={`spoke-${i}`}
-              aria-hidden
-              style={{
-                position: 'absolute', left: '50%', top: '50%',
-                width: 2, height: '50%',
-                transformOrigin: '0 0',
-                transform: `rotate(${i * SEG}deg)`,
-                background: 'rgba(0,0,0,.32)',
-                pointerEvents: 'none',
-              }}
-            />
-          ))}
+          {/*
+            Spokes as a conic-gradient overlay rather than rotated divs.
+
+            A 2px-wide element rotated 51 degrees keeps an axis-aligned
+            bounding box, so those "hairlines" were painting as 109x27 and
+            88x71 dark wedges over the slices — which is the colour overlap
+            that made the wheel look wrong. A gradient has no box to rotate.
+          */}
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              pointerEvents: 'none',
+              background: `repeating-conic-gradient(
+                rgba(0,0,0,.42) 0deg 0.7deg,
+                transparent 0.7deg ${SEG}deg
+              )`,
+            }}
+          />
 
           {/* A single specular sheen across the top, which is what stops a
               conic-gradient looking like a spreadsheet chart. */}
