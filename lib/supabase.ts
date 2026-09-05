@@ -98,6 +98,8 @@ export interface DbProfile {
   season_badge: string | null;
   drops: number;
   onboarded_at: string | null;
+  /** When the free hourly spin was last taken. Null means never. */
+  last_free_spin_at: string | null;
   total_reigns_won: number;
   peak_vibe: number;
   challenger_wins: number;
@@ -1138,4 +1140,50 @@ export async function fetchFollowCounts(profileId: string): Promise<FollowCounts
   if (error || !data) return { followers: 0, following: 0 };
   const row = data as { followers: number | null; following: number | null };
   return { followers: row.followers ?? 0, following: row.following ?? 0 };
+}
+
+/* ── The wheel ──────────────────────────────────────────────────────── */
+
+export interface SpinResult {
+  /** Index into WHEEL, so the screen can animate to the right segment. */
+  index: number;
+  value: number;
+  drops: number;
+  freeUsed: boolean;
+}
+
+export type SpinError = 'not_signed_in' | 'insufficient_drops' | 'free_spin_not_ready' | 'failed';
+
+/**
+ * Spins the wheel.
+ *
+ * The ROLL HAPPENS SERVER-SIDE. A client that picks its own prize and then
+ * asks to be paid is a client that picks 1000 every time — so this returns
+ * the outcome and the screen animates to it, rather than the other way
+ * round.
+ *
+ * Free and paid are one call so eligibility and payout cannot come apart:
+ * two concurrent taps would otherwise both see "free spin ready".
+ */
+export async function spinWheel(paid: boolean): Promise<SpinResult | { error: SpinError }> {
+  const db = supabase();
+  if (!db) return { error: 'failed' };
+
+  const { data, error } = await db.rpc('spin_wheel', { p_paid: paid });
+  if (error) {
+    const m = error.message ?? '';
+    if (m.includes('insufficient_drops')) return { error: 'insufficient_drops' };
+    if (m.includes('free_spin_not_ready')) return { error: 'free_spin_not_ready' };
+    if (m.includes('not_signed_in')) return { error: 'not_signed_in' };
+    console.warn('[supabase] spinWheel:', m);
+    return { error: 'failed' };
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return { error: 'failed' };
+  return {
+    index: row.out_index as number,
+    value: row.out_value as number,
+    drops: row.out_drops as number,
+    freeUsed: row.out_free_used as boolean,
+  };
 }

@@ -18,10 +18,12 @@ import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { SealedPack } from '@/components/SealedPack';
+import { SpinWheel } from '@/components/SpinWheel';
 import { useCards } from '@/lib/useCards';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
 import { usePacks } from '@/lib/usePacks';
+import { useAuth } from '@/lib/useAuth';
 import { PACKS, type PackTier } from '@/lib/domain/packs';
 
 /* Stage names, so the tap machine below reads as a sequence rather than
@@ -51,6 +53,7 @@ export default function PacksScreen() {
   const haptic = useHaptics();
   const { cards } = useCards();
   const pack = usePacks();
+  const { profile, refreshProfile } = useAuth();
 
   /*
     The server returns card ids; the catalogue supplies the artwork.
@@ -172,6 +175,19 @@ export default function PacksScreen() {
           >
             {pack.isSignedIn ? `YOU HAVE ${pack.drops} DROPS` : 'PICK A TIER TO OPEN'}
           </div>
+
+          {/*
+            The wheel sits above the tiers deliberately: it is the only
+            thing here a player with no Drops can still act on, and the
+            cheapest pack costs 150. A shop whose every option is greyed out
+            is a dead end.
+          */}
+          <SpinWheel
+            drops={pack.drops}
+            lastFreeSpinAt={profile.last_free_spin_at}
+            isSignedIn={pack.isSignedIn}
+            onResult={() => void refreshProfile()}
+          />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {Object.values(PACKS).map((def, idx) => {
