@@ -13,7 +13,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { WHEEL, SPIN_COST, freeSpinIn, freeSpinReady, formatWait } from '@/lib/domain/wheel';
+import {
+  WHEEL, SPIN_COST, freeSpinIn, freeSpinReady, formatWait, landingAngle,
+} from '@/lib/domain/wheel';
+import { DropsAmount } from '@/components/DropsIcon';
 import { spinWheel } from '@/lib/supabase';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
@@ -88,22 +91,32 @@ export function SpinWheel({
     /*
       Land the POINTER on the winning segment.
 
-      The pointer sits at the top, so the wheel must rotate until the middle
-      of `res.index` is under it. Five whole turns are added on top purely so
-      it reads as a spin rather than a jump; the landing angle is what the
-      server decided.
+      landingAngle returns an ABSOLUTE rotation, not a delta. The first
+      version added `360*5 + (360 - centre)` to the current angle, which is
+      right exactly once -- after the wheel has turned, adding an absolute
+      landing position lands somewhere else. Spin one was correct and every
+      spin after it drifted, so the wheel stopped on a different prize than
+      the one the server had already paid.
     */
-    const target = 360 * 5 + (360 - (res.index * SEG + SEG / 2));
-    setAngle((a) => a + target);
+    setAngle((a) => landingAngle(res.index, a));
 
-    // Match the CSS transition below, then reveal.
+    /*
+      The balance is already correct server-side, so refresh it now rather
+      than after the animation: the shop tiles above unlock the instant the
+      Drops land, and nothing has to be reloaded by hand.
+
+      The PRIZE is still revealed only when the wheel stops -- telling you
+      what you won while it is still turning removes the only reason to
+      watch it.
+    */
+    onResult();
+
     timer.current = setTimeout(() => {
       setSpinning(false);
       setWon({ value: res.value, free: res.freeUsed });
       if (res.value >= 500) { play('legendary'); haptic('success'); }
       else if (res.value > 0) { play('tap'); haptic('light'); }
       else { haptic('light'); }
-      onResult();
     }, 4200);
   }, [spinning, isSignedIn, free, canPay, play, haptic, onResult]);
 
@@ -186,7 +199,11 @@ export function SpinWheel({
                 color: won.value > 0 ? 'var(--neon-mint)' : 'var(--ink-40)',
               }}
             >
-              {won.value > 0 ? `+${won.value} DROPS` : 'BETTER LUCK NEXT TIME'}
+              {won.value > 0
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    +<DropsAmount value={won.value} size={22} tone="var(--neon-mint)" weight={400} />
+                  </span>
+                : 'BETTER LUCK NEXT TIME'}
             </div>
             <div style={{ font: '400 8px/1 var(--font-tele)', letterSpacing: '.16em', color: 'var(--ink-40)', marginTop: 6 }}>
               {won.free ? 'FREE SPIN USED' : `${SPIN_COST} DROPS SPENT`}
@@ -215,7 +232,7 @@ export function SpinWheel({
         {spinning ? 'SPINNING…'
           : !isSignedIn ? 'SIGN IN TO SPIN'
           : free ? 'SPIN FREE'
-          : canPay ? `SPIN · ${SPIN_COST} DROPS`
+          : canPay ? `SPIN · ${SPIN_COST}`
           : `NEED ${SPIN_COST - drops} MORE DROPS`}
       </button>
     </div>

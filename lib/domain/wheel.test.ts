@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   WHEEL, SPIN_COST, FREE_SPIN_MS,
   spin, segmentOdds, expectedValue, freeSpinIn, freeSpinReady, formatWait,
+  landingAngle, segmentAt,
 } from './wheel';
 
 describe('wheel shape', () => {
@@ -137,5 +138,37 @@ describe('formatWait', () => {
     expect(formatWait(30_000)).toBe('less than a minute');
     expect(formatWait(8 * 60_000)).toBe('8m');
     expect(formatWait(FREE_SPIN_MS)).toBe('1h');
+  });
+});
+
+describe('landingAngle', () => {
+  it('puts the winning segment under the pointer', () => {
+    for (let i = 0; i < WHEEL.length; i++) {
+      expect(segmentAt(landingAngle(i, 0))).toBe(i);
+    }
+  });
+
+  /*
+    The bug this pins: the angle was computed as a DELTA and added to the
+    wheel's current rotation. That is correct exactly once. After the wheel
+    has turned, adding an absolute landing position lands somewhere else —
+    so spin one was right and every spin after it drifted, leaving the
+    pointer on a different prize than the one the server had paid out.
+  */
+  it('stays correct across many consecutive spins', () => {
+    let angle = 0;
+    for (const idx of [3, 3, 5, 1, 0, 6, 6, 2, 4]) {
+      angle = landingAngle(idx, angle);
+      expect(segmentAt(angle)).toBe(idx);
+    }
+  });
+
+  it('always turns forwards, by at least the requested turns', () => {
+    let angle = 0;
+    for (const idx of [6, 0, 6, 0]) {
+      const next = landingAngle(idx, angle, 5);
+      expect(next).toBeGreaterThanOrEqual(angle + 5 * 360);
+      angle = next;
+    }
   });
 });

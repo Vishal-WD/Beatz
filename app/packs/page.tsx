@@ -19,6 +19,7 @@ import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { SealedPack } from '@/components/SealedPack';
 import { SpinWheel } from '@/components/SpinWheel';
+import { DropsAmount } from '@/components/DropsIcon';
 import { useCards } from '@/lib/useCards';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
@@ -173,7 +174,11 @@ export default function PacksScreen() {
               color: 'var(--ink-40)',
             }}
           >
-            {pack.isSignedIn ? `YOU HAVE ${pack.drops} DROPS` : 'PICK A TIER TO OPEN'}
+            {pack.isSignedIn
+              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                  YOU HAVE <DropsAmount value={pack.drops} size={13} />
+                </span>
+              : 'PICK A TIER TO OPEN'}
           </div>
 
           {/*
@@ -250,9 +255,7 @@ export default function PacksScreen() {
                     <span style={{ font: '400 20px/1 var(--font-title)', textTransform: 'uppercase', color: 'var(--ink)' }}>
                       {def.label}
                     </span>
-                    <span style={{ font: '700 13px/1 var(--font-stat)', color: 'var(--neon-gold)' }}>
-                      {def.cost} DROPS
-                    </span>
+                    <DropsAmount value={def.cost} size={13} />
                   </div>
 
                   <div style={{ font: '400 9px/1 var(--font-tele)', letterSpacing: '.14em', color: 'var(--ink-40)' }}>

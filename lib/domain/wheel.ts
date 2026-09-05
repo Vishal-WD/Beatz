@@ -112,3 +112,43 @@ export function formatWait(ms: number): string {
   if (mins <= 1) return 'less than a minute';
   return `${mins}m`;
 }
+
+/**
+ * The absolute rotation that puts segment `index` under the top pointer.
+ *
+ * This is deliberately ABSOLUTE, not a delta. The first version added
+ * `360*5 + (360 - segmentCentre)` to the wheel's current angle, which is
+ * correct exactly once: after the wheel has turned, adding an absolute
+ * landing position to an already-rotated wheel lands somewhere else. Spin
+ * one was right and every spin after it drifted, so the pointer disagreed
+ * with the prize the server had already paid.
+ *
+ * `from` is the current angle, used only to guarantee the wheel turns
+ * FORWARDS by at least `turns` full rotations — otherwise a landing that
+ * happens to sit behind the current position would spin backwards.
+ */
+export function landingAngle(index: number, from: number, turns = 5): number {
+  const seg = 360 / WHEEL.length;
+  // Where the wheel must end up, modulo a full turn.
+  const settle = (360 - (index * seg + seg / 2) + 360) % 360;
+  const base = Math.floor(from / 360) * 360;
+  let target = base + settle;
+  // Always move forward, and always by a visible number of turns.
+  while (target < from + turns * 360) target += 360;
+  return target;
+}
+
+/**
+ * Which segment sits under the pointer at `angle`. The inverse of the above,
+ * and the thing that makes landingAngle testable rather than eyeballed.
+ *
+ * Rounds against the segment CENTRE rather than flooring into a slice: a
+ * landing puts a centre exactly under the pointer, and flooring a value
+ * sitting precisely on a boundary picks the neighbour.
+ */
+export function segmentAt(angle: number): number {
+  const seg = 360 / WHEEL.length;
+  const norm = ((angle % 360) + 360) % 360;
+  const centre = ((360 - norm) % 360 + 360) % 360;
+  return Math.round((centre - seg / 2) / seg) % WHEEL.length;
+}
