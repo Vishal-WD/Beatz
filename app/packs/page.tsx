@@ -13,7 +13,7 @@
  * gets torn.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
@@ -26,6 +26,7 @@ import { useHaptics } from '@/lib/useHaptics';
 import { usePacks } from '@/lib/usePacks';
 import { useAuth } from '@/lib/useAuth';
 import { PACKS, type PackTier } from '@/lib/domain/packs';
+import { rarityTextVar } from '@/lib/rarity';
 
 /* Stage names, so the tap machine below reads as a sequence rather than
    as four bare integers. */
@@ -46,7 +47,10 @@ const TIER_SKIN: Record<PackTier, { wash: string; edge: string; glyph: string }>
 };
 
 const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
-const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'TAP FOR THE NEXT CARD'];
+/* The last step says SWIPE because that is the gesture that now moves
+   between pulled cards; tapping still works, but a gesture nobody is told
+   about is a gesture nobody uses. */
+const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'SWIPE FOR THE NEXT CARD'];
 
 export default function PacksScreen() {
   const [stage, setStage] = useState(0);
@@ -105,6 +109,48 @@ export default function PacksScreen() {
     requestAnimationFrame(() => requestAnimationFrame(() => setStage(TEARING)));
   }, [play, haptic, pack]);
 
+  /*
+    Swipe to move between pulled cards.
+
+    Tapping already advanced, but a stack of five cards you flick through is
+    the gesture people expect from a pack -- and tapping alone gave no way to
+    go BACK and look at one again. Left goes forward, right goes back, which
+    matches the direction the cards visually travel.
+
+    A pointer event rather than touch events: it covers mouse, pen and touch
+    with one path, and the reveal is also reachable on the desktop shell.
+  */
+  const swipeFrom = useRef<{ x: number; y: number } | null>(null);
+
+  const onSwipeStart = useCallback((e: React.PointerEvent) => {
+    swipeFrom.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (stage < PULLED || revealed <= 0) return;
+    setRevealed((r) => r - 1);
+    play('tap');
+    haptic('light');
+  }, [stage, revealed, play, haptic]);
+
+  const onSwipeEnd = useCallback((e: React.PointerEvent) => {
+    const from = swipeFrom.current;
+    swipeFrom.current = null;
+    if (!from) return;
+    const dx = e.clientX - from.x;
+    const dy = e.clientY - from.y;
+    // Horizontal intent only: a vertical drag is a scroll, not a swipe, and
+    // a short movement is a tap that wobbled.
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    e.stopPropagation();
+    if (dx < 0) advanceRef.current();
+    else goBack();
+  }, [goBack]);
+
+  /* advance is defined below and the swipe handler is defined above it, so
+     the ref keeps them from having to be ordered around each other. */
+  const advanceRef = useRef<() => void>(() => {});
+
   const advance = useCallback(() => {
     if (stage === 0) return; // stage 0 is the tier picker, not a tap target
     if (pack.busy) return;
@@ -129,6 +175,33 @@ export default function PacksScreen() {
       return next;
     });
   }, [play, haptic, pack, stage, pulled, revealed]);
+
+  advanceRef.current = advance;
+
+  /*
+    The room reacts to what came out of the pack.
+
+    Every pull revealed identically, so a legendary and a common landed with
+    the same weight -- and the pack's whole point is the moment a good card
+    appears. The screen now takes the rarity's own colour as an atmospheric
+    wash behind the card, strongest for legendary. Rarity is ALSO still
+    carried by the frame and the tier tag on the card itself (CLAUDE.md §2),
+    so this is emphasis, never the only signal: colour alone would leave a
+    colour-blind player with nothing.
+  */
+  const heroRarity = hero?.rarity ?? null;
+  const bigPull = heroRarity === 'epic' || heroRarity === 'legendary';
+
+  /* Fire haptics once per revealed card, not on every render. */
+  const celebrated = useRef<string | null>(null);
+  useEffect(() => {
+    if (stage < PULLED || !hero) return;
+    const key = `${hero.id}:${revealed}`;
+    if (celebrated.current === key) return;
+    celebrated.current = key;
+    if (hero.rarity === 'legendary') { play('legendary'); haptic('success'); }
+    else if (hero.rarity === 'epic') { play('legendary'); haptic('medium'); }
+  }, [stage, hero, revealed, play, haptic]);
 
   const packVisible = stage < 3;
   const cardOut = stage >= 1;
@@ -298,6 +371,9 @@ export default function PacksScreen() {
     <PhoneShell>
       <div
         onClick={advance}
+        onPointerDown={onSwipeStart}
+        onPointerUp={onSwipeEnd}
+        onPointerCancel={() => { swipeFrom.current = null; }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); advance(); } }}
@@ -312,8 +388,26 @@ export default function PacksScreen() {
           padding: 20,
           cursor: 'pointer',
           overflow: 'hidden',
+          touchAction: 'pan-y',
         }}
       >
+        {/*
+          Atmospheric wash in the rarity's own colour. Sits behind everything
+          and fades in, so a legendary changes the room rather than just the
+          card. Pointer-events off: it must never eat a tap or a swipe.
+        */}
+        {stage >= PULLED && heroRarity && (
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+              background: `radial-gradient(circle at 50% 42%, ${rarityTextVar(heroRarity)} 0%, transparent 62%)`,
+              opacity: heroRarity === 'legendary' ? 0.3 : heroRarity === 'epic' ? 0.2 : 0.08,
+              transition: 'opacity .7s var(--ease-ios), background .7s var(--ease-ios)',
+            }}
+          />
+        )}
+
         <div
           style={{
             font: '400 9px/1 var(--font-tele)',
