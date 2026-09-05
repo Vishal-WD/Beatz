@@ -16,6 +16,7 @@ import { useHaptics } from '@/lib/useHaptics';
 import { timeAgo } from '@/lib/domain/when';
 import { useLiveProfiles } from '@/lib/useLiveEvents';
 import { useActivityFeed } from '@/lib/useActivityFeed';
+import { KIND_ACCENT } from '@/lib/domain/activity';
 import { avatarFor } from '@/lib/rarity';
 
 /** "Maya J." -> "MJ" — the feed has no stored initials, only a name. */
@@ -28,13 +29,6 @@ function initialsOf(name: string): string {
 
 type Tab = 'FEED' | 'PEOPLE';
 
-const KIND_ACCENT: Record<string, string> = {
-  reign_won: 'var(--neon-cyan)',
-  peak_moment: 'var(--neon-gold)',
-  card_pulled: 'var(--neon-rose)',
-  followed: 'var(--ink-40)',
-  rsvp: 'var(--neon-pink)',
-};
 
 export default function SocialScreen() {
   const { play } = useSound();

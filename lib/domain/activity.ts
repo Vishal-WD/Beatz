@@ -60,3 +60,30 @@ export function buildFeed(src: FeedSources, limit = 50): ActivityEvent[] {
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, limit);
 }
+
+/*
+  Accent colour per kind, used by the /social feed.
+
+  It lives here rather than in the screen for two reasons. Next.js page
+  routes may only export `default` and a fixed set of route-config names, so
+  exporting it from app/social/page.tsx failed the build. And keeping it
+  beside the union means the two cannot drift: as Record<string, string> on
+  the screen, any key typechecked, so a renamed kind would have compiled
+  fine and silently lost its colour at runtime.
+
+  Note the `activity` TABLE has a different vocabulary again -- its check
+  constraint names `started_following`, `event_created` and `event_live`.
+  That table is not the source of truth: it has never held a row and nothing
+  writes to it. buildFeed derives the feed from reigns, pulls and follows
+  directly, so ITS union is what this map must cover.
+
+  `rsvp` is in the union but buildFeed does not emit it yet; the colour is
+  ready for when RSVPs join the feed.
+*/
+export const KIND_ACCENT: Record<ActivityKind, string> = {
+  reign_won: 'var(--neon-cyan)',
+  peak_moment: 'var(--neon-gold)',
+  card_pulled: 'var(--neon-rose)',
+  followed: 'var(--ink-40)',
+  rsvp: 'var(--neon-pink)',
+};
