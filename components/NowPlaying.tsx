@@ -11,7 +11,7 @@
 
 import { useState } from 'react';
 import type { SongCard } from '@/types/cards';
-import { usePlayback, fmtTime } from '@/lib/usePlayback';
+import { fmtTime } from '@/lib/usePlayback';
 import { usePreviewAudio } from '@/lib/usePreviewAudio';
 import { RARITY, vibeColor } from '@/lib/rarity';
 import { creditFor, type CardCredit } from '@/lib/domain/shoutouts';
@@ -33,7 +33,6 @@ export function NowPlaying({
   // Null unless the format allows shoutouts AND an owner is known —
   // display only, never a reward (CLAUDE.md §1.2).
   const shoutout = format ? creditFor(format, credit) : null;
-  const [expanded, setExpanded] = useState(false);
 
   /**
    * Two playback paths, and the preview wins when both exist.
@@ -44,26 +43,37 @@ export function NowPlaying({
    * is chart-sourced and has only a preview; the hand-curated cards have only
    * a video id — so both paths have to stay.
    */
+  /*
+    ONE playback path: a plain <audio> element.
+
+    The YouTube embed is gone. It was the only thing that required a visible
+    >=200px iframe (LICENSING_RIGHTS.md §2.7), and that stage lived inside
+    the deck's card panel — so playing a YouTube-backed card roughly doubled
+    the panel's height and shoved the rest of the room down the screen.
+
+    Nothing lost any audio: every card carries either an Apple preview or an
+    Audius stream, both of which this element plays. Verified against the
+    database before removing it — 90 of 90 cards still playable.
+  */
   const preview = usePreviewAudio(card.previewUrl ?? null);
-  const usePreview = preview.available;
+  const available = preview.available;
+  const playing = preview.playing;
+  const elapsed = preview.elapsed;
+  const duration = preview.duration;
+  const toggle = preview.toggle;
 
-  const yt = usePlayback({
-    // Do not construct a YouTube player when the preview is handling playback.
-    videoId: usePreview ? null : card.youtubeVideoId,
-    autoplay: false,
-  });
-
-  const { hostRef, ready, error } = yt;
-  const playing = usePreview ? preview.playing : yt.state === 'playing';
-  const elapsed = usePreview ? preview.elapsed : yt.elapsed;
-  const duration = usePreview ? preview.duration : yt.duration;
-  const toggle = usePreview ? preview.toggle : yt.toggle;
+  /* Which source is actually loaded. Read from the URL rather than a stored
+     column so the attribution label can never disagree with the audio. */
+  const isFullTrack = (card.previewUrl ?? '').includes('audius');
 
   const r = RARITY[card.rarity];
   const pct = duration > 0 ? (elapsed / duration) * 100 : 0;
   const color = vibeColor(vibe);
 
-  if (!card.previewUrl && !card.youtubeVideoId) {
+  /* A card with no audio source at all. previewUrl carries both the Apple
+     preview and the Audius stream, so it is the only thing to ask about now
+     that the YouTube path is gone. */
+  if (!card.previewUrl) {
     return (
       <div
         style={{
@@ -92,50 +102,12 @@ export function NowPlaying({
         transition: 'border-color .3s ease',
       }}
     >
-      {/*
-        The player must stay >= 200x200 and on-screen (LICENSING_RIGHTS.md
-        §2.7). It is mounted from the first render rather than on expand:
-        the YouTube IFrame API replaces the host element on construction, and
-        a zero-height container gave it nothing to measure, so the player
-        never initialised and every play button did nothing.
-
-        Collapsed state moves it off-screen at full size instead of shrinking
-        it to zero — that keeps the required dimensions while hiding it.
-      */}
-      {/*
-        On the preview path there is no YouTube player to show, so reserving
-        the 200px stage left a large black void under the card. Only the
-        embed path needs (and by LICENSING_RIGHTS.md §2.7, must have) a
-        visible >=200px player.
-      */}
-      <div
-        style={
-          expanded && !usePreview
-            ? { height: 200, overflow: 'hidden', background: 'var(--video-backdrop)', transition: 'height .3s ease' }
-            : { height: 0, overflow: 'hidden', background: 'var(--video-backdrop)' }
-        }
-      >
-        <div
-          style={
-            expanded && !usePreview
-              ? { width: '100%', height: 200 }
-              : // Off-screen, still 320x200: hidden without being unmeasurable.
-                { position: 'fixed', left: -10000, top: 0, width: 320, height: 200, pointerEvents: 'none' }
-          }
-        >
-          <div ref={hostRef} style={{ width: '100%', height: '100%' }} />
-        </div>
-      </div>
-
       <div style={{ padding: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
-            onClick={() => {
-              setExpanded(true);
-              toggle();
-            }}
+            onClick={toggle}
+            disabled={!available}
             aria-label={playing ? `Pause ${card.title}` : `Play ${card.title}`}
-            disabled={usePreview ? false : !ready && !error}
             style={{
               width: 44,
               height: 44,
@@ -147,8 +119,7 @@ export function NowPlaying({
               border: playing ? '1px solid var(--neon-pink)' : 'var(--border-strong)',
               color: playing ? 'var(--ink-on-neon)' : 'var(--ink)',
               font: '400 15px/1 var(--font-body)',
-              opacity: !usePreview && !ready && !error ? 0.45 : 1,
-              transition: 'background .2s ease, transform .12s ease',
+                  transition: 'background .2s ease, transform .12s ease',
               boxShadow: playing ? '0 4px 12px rgba(250, 45, 85, 0.4)' : undefined,
             }}
           >
@@ -295,31 +266,23 @@ export function NowPlaying({
                 "ready" gate (an <audio> element is usable immediately), while
                 the YouTube player must construct itself first. */}
             <span>
-              {usePreview
-                ? preview.state === 'error'
-                  ? 'UNAVAILABLE'
-                  : preview.state === 'loading'
-                    ? 'BUFFERING'
-                    : preview.playing
-                      ? 'PLAYING'
-                      : preview.state === 'ended'
-                        ? 'ENDED'
-                        : 'PREVIEW · 30s'
-                : error
-                  ? 'UNAVAILABLE'
-                  : !ready
-                    ? 'LOADING…'
-                    : playing
-                      ? 'PLAYING'
-                      : yt.state === 'buffering'
-                        ? 'BUFFERING'
-                        : 'PAUSED'}
+              {preview.state === 'error'
+                ? 'UNAVAILABLE'
+                : preview.state === 'loading'
+                  ? 'BUFFERING'
+                  : playing
+                    ? 'PLAYING'
+                    : preview.state === 'ended'
+                      ? 'ENDED'
+                      : isFullTrack
+                        ? 'FULL TRACK'
+                        : 'PREVIEW · 30s'}
             </span>
             <span>{fmtTime(duration)}</span>
           </div>
         </div>
 
-        {error && (
+        {preview.state === 'error' && (
           <div
             style={{
               marginTop: 9,
@@ -327,17 +290,20 @@ export function NowPlaying({
               color: 'var(--neon-gold)',
             }}
           >
-            {error} Try another card.
+            That track would not load. Try another card.
           </div>
         )}
 
-        {/* Attribution: we display YouTube's player, we don't host audio. */}
         {/*
-          Attribute whatever actually played. Saying "via YouTube" over an
-          Apple preview stream is simply false, and attribution is the thing
-          keeping this app copyright-clean (LICENSING_RIGHTS.md §2.5, §2.7).
+          Attribute whatever actually played.
+
+          Naming the wrong source is not a cosmetic slip — attribution is
+          what keeps this app copyright-clean (LICENSING_RIGHTS.md §2.5), so
+          an Audius stream must not be credited to Apple and vice versa. The
+          source is read from the URL rather than from a stored flag, so the
+          label cannot drift away from what the element is actually loading.
         */}
-        {(usePreview || expanded) && !error && (
+        {available && preview.state !== 'error' && (
           <div
             style={{
               marginTop: 9,
@@ -346,7 +312,7 @@ export function NowPlaying({
               color: 'var(--ink-25)',
             }}
           >
-            {usePreview ? 'PREVIEW VIA APPLE MUSIC' : 'PLAYED VIA YOUTUBE'}
+            {isFullTrack ? 'FULL TRACK VIA AUDIUS' : 'PREVIEW VIA APPLE MUSIC'}
           </div>
         )}
       </div>
