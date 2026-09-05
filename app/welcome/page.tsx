@@ -81,14 +81,32 @@ export default function WelcomeScreen() {
   // router.replace() while WelcomeScreen itself is rendering produces
   // "Cannot update a component while rendering a different component"
   // and the navigation races with this component's own render.
+  /*
+    Arriving here straight from signup, the session exists but this hook
+    instance may not have seen it yet: isLoading is already false while
+    isSignedIn is still false for a tick. Bouncing on that tick sent a
+    brand-new player back to /signin -- so the welcome, the avatar picker
+    and the starter-pack tear were skipped entirely, which read as "the
+    animations are gone".
+
+    A short grace period distinguishes "not signed in" from "not signed in
+    YET". A genuinely anonymous visitor waits a beat longer before being
+    redirected, which costs nothing; a new player keeps their welcome.
+  */
+  const [graceOver, setGraceOver] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGraceOver(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     if (isLoading) return;
     if (!isSignedIn) {
-      router.replace('/signin');
+      if (graceOver) router.replace('/signin');
     } else if (alreadyOnboarded) {
       router.replace('/deck');
     }
-  }, [isLoading, isSignedIn, alreadyOnboarded, router]);
+  }, [isLoading, isSignedIn, alreadyOnboarded, graceOver, router]);
 
   const openPack = useCallback(() => {
     play('packTear');
@@ -134,6 +152,8 @@ export default function WelcomeScreen() {
 
   const hero = useMemo(() => cards[Math.min(revealed, cards.length - 1)] ?? null, [cards, revealed]);
 
+  // Same grace period as the redirect above: show the spinner rather than
+  // deciding the player is anonymous while the session is still arriving.
   if (isLoading || !isSignedIn || alreadyOnboarded) {
     return <Shell><Loading /></Shell>;
   }

@@ -85,10 +85,24 @@ async function loadProfileInto(userId: string) {
   // and tiers, which would also have exposed every player's Drops balance;
   // the private economy columns live behind this view.
   const { data } = await db.from('my_profile').select('*').eq('id', userId).single();
-  if (data) setSnapshot({ profile: data as DbProfile, state: 'signed-in' });
-  // The signup trigger creates the row; a miss means it has not committed
-  // yet. Stay anonymous rather than rendering a broken profile.
-  else setSnapshot({ state: 'anonymous' });
+  if (data) { setSnapshot({ profile: data as DbProfile, state: 'signed-in' }); return; }
+
+  /*
+    The row is created by the handle_new_user trigger, so immediately after
+    signup it may not have committed yet. Reporting `anonymous` there is
+    what bounced brand-new players off /welcome and back to /signin -- they
+    never saw the avatar picker or the starter-pack tear.
+
+    Retry a few times before giving up. A signed-in user with no profile row
+    is a race, not an anonymous visitor.
+  */
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise((r) => setTimeout(r, 300));
+    const { data: retry } = await db.from('my_profile').select('*').eq('id', userId).single();
+    if (retry) { setSnapshot({ profile: retry as DbProfile, state: 'signed-in' }); return; }
+  }
+
+  setSnapshot({ state: 'anonymous' });
 }
 
 /** Re-reads the profile. Call after anything that changes it server-side. */
@@ -173,11 +187,33 @@ export function useAuth() {
       Report the real outcome instead so the UI can say what happened.
     */
     if (!data.session) {
+      /*
+        No session does not always mean "go and read your email".
+
+        Supabase also returns a null session when the account was created
+        and is immediately usable -- and a player who is told to check their
+        inbox for a mail that never arrives is simply stuck at the door with
+        a working account. So try signing in with the credentials just used
+        before reporting a wall: if that succeeds, confirmation was never
+        required and the signup is complete.
+      */
+      const { data: signInData, error: signInErr } =
+        await db.auth.signInWithPassword({ email, password });
+      if (!signInErr) {
+        // Load the profile before returning, so the caller navigates with a
+        // resolved session rather than racing onAuthStateChange.
+        if (signInData.user) await loadProfileInto(signInData.user.id);
+        return { ok: true, message: '' };
+      }
+
       const m = 'Check your email to confirm the account, then sign in.';
       setError(m);
       return { ok: false, message: m, needsConfirmation: true };
     }
 
+    // Same reason as above: resolve the profile before the caller routes,
+    // or /welcome sees isSignedIn false for a tick and bounces to /signin.
+    if (data.user) await loadProfileInto(data.user.id);
     return { ok: true, message: '' };
   }, []);
 

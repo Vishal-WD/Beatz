@@ -72,8 +72,29 @@ export function SpinWheel({
     return () => clearInterval(id);
   }, []);
 
-  const free = freeSpinReady(lastFreeSpinAt, now);
-  const wait = freeSpinIn(lastFreeSpinAt, now);
+  /*
+    When the last free spin was, according to the SERVER's last answer.
+
+    The prop comes from the cached profile, and a spin does not change that
+    cache until refreshProfile() has round-tripped. In that gap the button
+    still said SPIN FREE -- so a second tap looked free and silently spent
+    100 Drops instead, because the server (correctly) refuses a second free
+    spin inside the hour. spin_wheel returns which kind it actually gave, so
+    that answer wins over the cache until the cache catches up.
+  */
+  const [spentFreeAt, setSpentFreeAt] = useState<string | null>(null);
+
+  /* The prop moving forward means the refresh landed; drop the local
+     override so there is one source of truth again. */
+  useEffect(() => { setSpentFreeAt(null); }, [lastFreeSpinAt]);
+
+  const effectiveLastFree =
+    spentFreeAt && (!lastFreeSpinAt || spentFreeAt > lastFreeSpinAt)
+      ? spentFreeAt
+      : lastFreeSpinAt;
+
+  const free = freeSpinReady(effectiveLastFree, now);
+  const wait = freeSpinIn(effectiveLastFree, now);
   const canPay = drops >= SPIN_COST;
 
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -89,9 +110,16 @@ export function SpinWheel({
     play('tap');
     haptic('medium');
 
+    /* If the client thinks a free spin is due, ask for the FREE one only.
+       Passing paid=true here would spend Drops on a spin the player was
+       told was free; the server refusing is the safe failure. */
     const res = await spinWheel(!free);
     if ('error' in res) {
       setSpinning(false);
+      /* The server disagreed about the free spin -- its clock is the real
+         one. Adopt its answer so the button stops offering what it will not
+         give, instead of letting the next tap spend 100 Drops by surprise. */
+      if (res.error === 'free_spin_not_ready') setSpentFreeAt(new Date().toISOString());
       setError(
         res.error === 'insufficient_drops' ? `You need ${SPIN_COST} Drops to spin.`
           : res.error === 'free_spin_not_ready' ? 'Your free spin is not ready yet.'
@@ -111,6 +139,12 @@ export function SpinWheel({
       spin after it drifted, so the wheel stopped on a different prize than
       the one the server had already paid.
     */
+    /* The server says which kind of spin it gave. If it consumed the free
+       one, start the hour NOW rather than waiting for the profile refresh --
+       otherwise the button offers another free spin that would quietly cost
+       100 Drops. */
+    if (res.freeUsed) setSpentFreeAt(new Date().toISOString());
+
     setAngle((a) => landingAngle(res.index, a));
 
     /*

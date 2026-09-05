@@ -172,3 +172,55 @@ describe('landingAngle', () => {
     }
   });
 });
+
+/*
+  The free spin must not be offered twice.
+
+  The wheel read `lastFreeSpinAt` from the cached profile, which does not
+  change until refreshProfile() has round-tripped. In that gap the button
+  still said SPIN FREE, so a second tap looked free and silently spent 100
+  Drops -- the server correctly refuses a second free spin inside the hour
+  and falls back to the paid path.
+
+  The server's own answer now wins over the cache until the cache catches
+  up. These pin the arithmetic that decision rests on.
+*/
+describe('the free spin is once an hour, not once a render', () => {
+  it('is not ready the instant one is taken', () => {
+    const justNow = new Date().toISOString();
+    expect(freeSpinReady(justNow, Date.now())).toBe(false);
+  });
+
+  it('counts down a full hour from the spin', () => {
+    const t0 = Date.parse('2026-09-05T12:00:00Z');
+    const spun = new Date(t0).toISOString();
+
+    expect(freeSpinReady(spun, t0 + 59 * 60_000)).toBe(false);
+    expect(freeSpinReady(spun, t0 + 60 * 60_000)).toBe(true);
+  });
+
+  it('reports the remaining wait so the button can say it', () => {
+    const t0 = Date.parse('2026-09-05T12:00:00Z');
+    const spun = new Date(t0).toISOString();
+    // Half an hour in, half an hour left.
+    expect(freeSpinIn(spun, t0 + 30 * 60_000)).toBe(30 * 60_000);
+    expect(formatWait(freeSpinIn(spun, t0 + 30 * 60_000))).toBe('30m');
+  });
+
+  it('treats a server timestamp newer than the cached one as authoritative', () => {
+    /*
+      What the component does: the cached profile still holds the OLD spin
+      time while the server has already recorded a newer one. Taking the
+      later of the two is what stops the button offering a spin the server
+      will refuse.
+    */
+    const older = '2026-09-05T12:00:00.000Z';
+    const newer = '2026-09-05T12:30:00.000Z';
+    const effective = newer > older ? newer : older;
+
+    // Past the hour for the older stamp, still inside it for the newer.
+    const at = Date.parse('2026-09-05T13:05:00Z');
+    expect(freeSpinReady(older, at)).toBe(true);      // the stale view
+    expect(freeSpinReady(effective, at)).toBe(false); // what the player sees
+  });
+});
