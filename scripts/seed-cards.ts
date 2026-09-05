@@ -41,6 +41,17 @@ interface SeedRow {
   artist?: string;
   releaseGroupId?: string;
   /**
+   * Position on the most-played feed this card came from, 1 = strongest.
+   * Null for the named-artist pass, which is wanted in the pool regardless
+   * of what is charting this week.
+   *
+   * This is a MEASURED popularity signal and outranks tierHint below. It was
+   * written by fetch-charts.mjs from the start but never read past picking a
+   * rarity tier, which is why every card fell through to the hint and whole
+   * tiers ended up sharing one stat line.
+   */
+  chartRank?: number | null;
+  /**
    * Curated fallback tier, used ONLY when every popularity source is
    * unreachable. Real popularity data always wins (CLAUDE.md §2 — rarity is
    * universal and derived, never hand-assigned).
@@ -76,6 +87,7 @@ interface EnrichedCard {
   artworkSource: 'caa' | 'itunes' | null;
   previewUrl: string | null;
   deezerRank: number | null;
+  chartRank: number | null;
   artistReleaseCount: number;
   hype: number;
   stamina: number;
@@ -274,11 +286,53 @@ async function enrich(row: SeedRow): Promise<EnrichedCard | null> {
 
     let stats = deriveStats(snap, releaseCount);
 
-    // Real popularity always wins. The hint applies only when no source
-    // resolved — otherwise the pool would mint entirely common and the
-    // rarity ladder would be untestable.
+    /*
+      Real popularity always wins, and CHART POSITION IS REAL POPULARITY.
+
+      This used to fall straight through to tierHint whenever Deezer
+      returned nothing — which was every card. tierHint is one value per
+      TIER, so every card in a tier derived the identical P and therefore
+      identical stats: 21 cards at 64/68, 14 at 82/56, eleven distinct stat
+      lines across sixty cards. That makes the hype/stamina trade-off
+      meaningless, and choosing between two cards is the decision the whole
+      game is built on.
+
+      chartRank was sitting in the seed row the entire time, unused past
+      picking a rarity tier. Rank 1 is the strongest signal in the pool, so
+      it maps to the top of the range and each position below it steps down.
+    */
+    if (stats.needsReview && row.chartRank != null) {
+      const P = Math.max(0.05, Math.min(1, 1 - (row.chartRank - 1) / 40));
+      stats = deriveStats(
+        { ...snap, deezerRank: Math.round(Math.pow(P, 1 / 0.38) * 1_000_000) },
+        releaseCount,
+      );
+      // Measured, not curated: this came off a real most-played feed.
+      stats.needsReview = false;
+    }
+
+    /*
+      Nothing charted and no measured source: the hint is all that is left.
+      A per-card jitter keeps cards inside a tier from collapsing onto one
+      stat line, derived from the id so it is stable across re-seeds — a
+      random spread would give the same card different stats every run.
+    */
     if (stats.needsReview && row.tierHint) {
-      const P = TIER_HINT_P[row.tierHint];
+      const base = TIER_HINT_P[row.tierHint];
+      /*
+        FNV-1a, not a simple 31-multiply. Ids in this pool share a long
+        prefix ("itunes:") and differ only in their last digits, and a
+        31-multiply leaves those clustered — five neighbouring ids landed
+        inside one rounding bucket and produced the identical stat line this
+        whole fix exists to remove. FNV mixes every byte into the high bits.
+      */
+      let h = 2166136261 >>> 0;
+      for (const ch of row.mbRecordingId) {
+        h ^= ch.charCodeAt(0);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      const jitter = ((h % 1000) / 1000 - 0.5) * 0.12;
+      const P = Math.max(0.05, Math.min(1, base + jitter));
       stats = deriveStats(
         { ...snap, deezerRank: Math.round(Math.pow(P, 1 / 0.38) * 1_000_000) },
         releaseCount,
@@ -300,6 +354,7 @@ async function enrich(row: SeedRow): Promise<EnrichedCard | null> {
       artworkSource,
       previewUrl: itunes.previewUrl,
       deezerRank: rank,
+      chartRank: row.chartRank ?? null,
       artistReleaseCount: releaseCount,
       hype: stats.hype,
       stamina: stats.stamina,
@@ -344,7 +399,7 @@ function emit(cards: EnrichedCard[]): string {
     isCollab: ${isCollab},
     hype: ${c.hype},
     stamina: ${c.stamina},
-    popularitySnapshot: { spotifyPopularity: null, spotifyFollowers: null, deezerRank: ${c.deezerRank}, capturedAt: '${new Date().toISOString()}' },
+    popularitySnapshot: { spotifyPopularity: null, spotifyFollowers: null, deezerRank: ${c.deezerRank}, chartRank: ${c.chartRank}, capturedAt: '${new Date().toISOString()}' },
     serialNumber: ${i + 1},
     supplyTotal: ${supplyTotal(c.rarity, 0)},
     supplyRemaining: ${supplyTotal(c.rarity, 0)},
