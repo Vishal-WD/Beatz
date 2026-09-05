@@ -26,6 +26,9 @@ import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
 import { rarityTextVar } from '@/lib/rarity';
 import type { SongCard } from '@/types/cards';
+import {
+  shuffleCards, applyOrder, nextPlayable as nextAfter, firstPlayable,
+} from '@/lib/domain/playback-queue';
 
 /** mm:ss. Only ever called with a duration the audio element actually reported. */
 function clock(seconds: number): string {
@@ -40,14 +43,7 @@ function clock(seconds: number): string {
  * advance would mean the list you are looking at is never the list that
  * plays next, and "what's coming up" would be unanswerable.
  */
-function shuffled<T>(items: T[]): T[] {
-  const out = items.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
+
 
 export default function HomeScreen() {
   const { cards, state } = useOwnedCards();
@@ -64,16 +60,10 @@ export default function HomeScreen() {
   */
   const [order, setOrder] = useState<string[] | null>(null);
 
-  const queue = useMemo(() => {
-    if (!order) return cards;
-    const byId = new Map(cards.map((c) => [c.id, c]));
-    const picked = order.map((id) => byId.get(id)).filter(Boolean) as SongCard[];
-    // Anything pulled since the shuffle still belongs in the queue; append
-    // it rather than dropping it, so the list can never be shorter than the
-    // collection it claims to be.
-    const seen = new Set(order);
-    return [...picked, ...cards.filter((c) => !seen.has(c.id))];
-  }, [cards, order]);
+  /* Applying a saved shuffle to the live collection is shared, tested
+     logic: cards pulled since the shuffle are appended rather than dropped,
+     so the queue can never be shorter than the collection it represents. */
+  const queue = useMemo(() => applyOrder(cards, order), [cards, order]);
 
   // One id drives one usePreviewAudio call — one <audio> element for the
   // whole library, so two tracks can never overlap.
@@ -114,22 +104,20 @@ export default function HomeScreen() {
     });
   }, [stop]);
 
-  /** The first card from `from` onward that can actually make a sound. */
-  const nextPlayable = useCallback((from: number): SongCard | null => {
-    for (let i = from; i < queue.length; i++) {
-      if (queue[i].previewUrl) return queue[i];
-    }
-    return null;
-  }, [queue]);
+  /*
+    Auto-advance. 'ended' is the hook's own terminal state, so this needs no
+    timer and no polling — and it stops at the end of the list rather than
+    looping, because a library that restarts itself is a library you cannot
+    put down.
 
-  // Auto-advance. 'ended' is the hook's own terminal state, so this needs no
-  // timer and no polling — and it stops at the end of the list rather than
-  // looping, because a library that restarts itself is a library you cannot
-  // put down.
+    nextPlayable() treats "the playing card is not in the queue" as "start
+    from the top", which is the honest answer when the queue was reordered
+    underneath a playing track. The old arithmetic asked findIndex for an
+    index and stopped playback outright when it came back -1.
+  */
   useEffect(() => {
     if (audioState !== 'ended' || !playingId) return;
-    const idx = queue.findIndex((c) => c.id === playingId);
-    const next = idx >= 0 ? nextPlayable(idx + 1) : null;
+    const next = nextAfter(queue, playingId);
     if (next) {
       wantPlayRef.current = next.id;
       setPlayingId(next.id);
@@ -137,11 +125,11 @@ export default function HomeScreen() {
       setPlayingId(null);
       wantPlayRef.current = null;
     }
-  }, [audioState, playingId, queue, nextPlayable]);
+  }, [audioState, playingId, queue]);
 
   const playAll = useCallback(() => {
     setOrder(null);
-    const first = cards.find((c) => c.previewUrl);
+    const first = firstPlayable(cards);
     if (!first) return;
     play('tap');
     haptic('light');
@@ -150,15 +138,31 @@ export default function HomeScreen() {
   }, [cards, play, haptic]);
 
   const shuffle = useCallback(() => {
-    const next = shuffled(cards);
+    const next = shuffleCards(cards);
     setOrder(next.map((c) => c.id));
-    const first = next.find((c) => c.previewUrl);
+    const first = firstPlayable(next);
     if (!first) return;
     play('tap');
     haptic('light');
+
+    /*
+      Re-shuffling can land on the track already playing. setPlayingId with
+      the same id changes no url, so usePreviewAudio never rebuilds its
+      <audio> element and the play-on-url-change effect early-returns on
+      `playing` -- leaving wantPlayRef set forever while the list on screen
+      reordered underneath the audio. The visible queue and what you heard
+      disagreed from then on.
+
+      Clearing the id first forces the url through null, so the next render
+      genuinely remounts and starts the new order from its top.
+    */
+    if (playingId === first.id) {
+      stop();
+      setPlayingId(null);
+    }
     wantPlayRef.current = first.id;
     setPlayingId(first.id);
-  }, [cards, play, haptic]);
+  }, [cards, play, haptic, playingId, stop]);
 
   const playableCount = queue.filter((c) => c.previewUrl).length;
 

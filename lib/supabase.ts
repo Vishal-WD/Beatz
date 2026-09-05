@@ -71,7 +71,11 @@ export interface DbCard {
   /** Apple 30s preview. Present on chart-sourced cards; CORS-open. */
   preview_url: string | null;
   jamendo_track_id: string | null;
-  playback_mode: 'youtube_embed' | 'apple_preview' | 'spotify_handoff' | 'jamendo_local';
+  /** Audius track id. Full-length audio, streamed from their public API. */
+  audius_track_id: string | null;
+  playback_mode:
+    | 'youtube_embed' | 'apple_preview' | 'spotify_handoff'
+    | 'jamendo_local' | 'audius_stream';
   audio_analyzable: boolean;
   license_variant: string | null;
   attribution_text: string | null;
@@ -768,7 +772,23 @@ export function dbCardToSongCard(c: DbCard) {
     spotifyTrackId: null,
     deezerTrackId: null,
     youtubeVideoId: c.youtube_video_id,
-    previewUrl: c.preview_url,
+    /*
+      The URL an <audio> element can actually load.
+
+      Audius cards carry a track ID, not a URL, so without this they reached
+      every screen with previewUrl === null -- the library listed all 30 as
+      NO PREVIEW and skipped them, and the binder would not play them. The
+      database had the cards; the client had no way to hear them.
+
+      The stream endpoint 302s to a content node. That is fine for <audio>,
+      which follows redirects, but the node sends no CORS headers -- so the
+      Web Audio FFT cannot analyse these. The Apple previews stay the
+      CORS-open source the vibe bar needs.
+    */
+    previewUrl: c.audius_track_id
+      ? `https://api.audius.co/v1/tracks/${c.audius_track_id}/stream?app_name=Beatz`
+      : c.preview_url,
+    audiusTrackId: c.audius_track_id,
     jamendoTrackId: c.jamendo_track_id,
     artists: [],
     isCollab: false,
