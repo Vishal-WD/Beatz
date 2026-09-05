@@ -1110,3 +1110,32 @@ export async function fetchJoinCode(roomUuid: string): Promise<string | null> {
   const { data } = await db.from('rooms').select('join_code').eq('id', roomUuid).single();
   return (data as { join_code: string | null } | null)?.join_code ?? null;
 }
+
+/* ── Social counts ──────────────────────────────────────────────────── */
+
+export interface FollowCounts {
+  followers: number;
+  following: number;
+}
+
+/**
+ * Follower / following counts for a profile.
+ *
+ * Computed by the `profile_social` view rather than stored on `profiles`:
+ * denormalised counters need a trigger on every follow and unfollow, and
+ * they drift the first time one path forgets to fire. The follows table is
+ * indexed on both directions, so counting is cheap and cannot disagree with
+ * itself.
+ */
+export async function fetchFollowCounts(profileId: string): Promise<FollowCounts> {
+  const db = supabase();
+  if (!db) return { followers: 0, following: 0 };
+  const { data, error } = await db
+    .from('profile_social')
+    .select('followers, following')
+    .eq('id', profileId)
+    .single();
+  if (error || !data) return { followers: 0, following: 0 };
+  const row = data as { followers: number | null; following: number | null };
+  return { followers: row.followers ?? 0, following: row.following ?? 0 };
+}

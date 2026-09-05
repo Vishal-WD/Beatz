@@ -16,7 +16,10 @@ import { PROFILE_FRAME, RARITY, avatarFor, rarityTextVar } from '@/lib/rarity';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
 import { usePreviewAudio } from '@/lib/usePreviewAudio';
-import { fetchPinnedCards, dbCardToSongCard, updateDisplayName } from '@/lib/supabase';
+import {
+  fetchPinnedCards, dbCardToSongCard, updateDisplayName,
+  fetchFollowCounts, type FollowCounts,
+} from '@/lib/supabase';
 import { filterCollection, languagesIn, countsByRarity } from '@/lib/domain/collection';
 import type { RarityFilter, LanguageFilter } from '@/lib/domain/collection';
 import type { SongCard } from '@/types/cards';
@@ -29,6 +32,17 @@ export default function ProfileScreen() {
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
   const { profile, isSignedIn, isLoading, signOut, refreshProfile } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
+
+  /* Follower counts come from the profile_social view, which computes them
+     from the follows table rather than reading a stored counter that could
+     drift out of step with reality. */
+  const [social, setSocial] = useState<FollowCounts>({ followers: 0, following: 0 });
+  useEffect(() => {
+    if (!isSignedIn) { setSocial({ followers: 0, following: 0 }); return; }
+    let cancelled = false;
+    void fetchFollowCounts(profile.id).then((c) => { if (!cancelled) setSocial(c); });
+    return () => { cancelled = true; };
+  }, [isSignedIn, profile.id]);
   /*
     The binder is the player's OWN collection. It used to render the whole
     global catalogue, so every player's binder looked identical and showed
@@ -185,13 +199,23 @@ export default function ProfileScreen() {
               </span>
             </div>
 
+            {/*
+              Followers / following / cards, not reigns and win rates.
+
+              The three combat stats read 0 / 0 / 0% for every player who has
+              not yet held a throne, which is everyone on their first night —
+              a profile whose headline numbers are all zero says nothing
+              about the person. Social counts move from the first tap, and
+              they are what you actually want to see on someone else's card.
+
+              The reign stats still exist on the profile row and still drive
+              the Profile Card in CLAUDE.md §2; they are simply not the
+              headline here.
+            */}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <ProfileStat label={'TOTAL REIGNS\nWON'} value={profile.total_reigns_won} />
-              <ProfileStat label={'PEAK\nVIBE'} value={profile.peak_vibe} />
-              <ProfileStat
-                label={'CHALLENGER\nWIN RATE'}
-                value={`${profile.challenger_attempts > 0 ? Math.round((profile.challenger_wins / profile.challenger_attempts) * 100) : 0}%`}
-              />
+              <ProfileStat label={'FOLLOWERS'} value={social.followers} />
+              <ProfileStat label={'FOLLOWING'} value={social.following} />
+              <ProfileStat label={'CARDS'} value={owned.length} />
             </div>
           </div>
         </div>
