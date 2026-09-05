@@ -27,10 +27,11 @@ import { usePacks } from '@/lib/usePacks';
 import { useAuth } from '@/lib/useAuth';
 import { PACKS, type PackTier } from '@/lib/domain/packs';
 import { rarityTextVar } from '@/lib/rarity';
+import { viewFor, SEALED, TEARING, FLIPPING, PULLED, type RevealStage } from '@/lib/domain/reveal';
 
-/* Stage names, so the tap machine below reads as a sequence rather than
-   as four bare integers. */
-const SEALED = 0, TEARING = 1, FLIPPING = 2, PULLED = 3;
+/* Stage names and the view they imply live in lib/domain/reveal.ts, so the
+   sequence is testable without a browser -- see reveal.test.ts for the
+   picker/SEALED collision that made the tear a jump cut. */
 
 /**
  * Per-tier identity.
@@ -53,7 +54,16 @@ const STEP_LABEL = ['SEALED · SERIES 01', 'TEARING', 'FLIPPING', 'PULLED'];
 const STEP_CTA = ['TAP TO TEAR', 'TAP TO SLIDE IT OUT', 'TAP TO SETTLE', 'SWIPE FOR THE NEXT CARD'];
 
 export default function PacksScreen() {
-  const [stage, setStage] = useState(0);
+  /*
+    Whether the shop counter is showing, kept SEPARATE from `stage`.
+
+    It used to be `stage === 0`, which collided with SEALED -- also 0. So the
+    one frame the tear animates FROM could never render: the picker owned
+    that stage, and the sealed pack first mounted at TEARING, already torn.
+    The double-rAF below was doing its job and had nothing to work with.
+  */
+  const [picking, setPicking] = useState(true);
+  const [stage, setStage] = useState<RevealStage>(SEALED);
   const { play } = useSound();
   const haptic = useHaptics();
   const { cards } = useCards();
@@ -112,6 +122,7 @@ export default function PacksScreen() {
       clip-path actually animates. requestAnimationFrame rather than a
       timeout because it is tied to real paints, not a guessed millisecond.
     */
+    setPicking(false);
     setStage(SEALED);
     requestAnimationFrame(() => requestAnimationFrame(() => setStage(TEARING)));
   }, [play, haptic, pack]);
@@ -159,25 +170,29 @@ export default function PacksScreen() {
   const advanceRef = useRef<() => void>(() => {});
 
   const advance = useCallback(() => {
-    if (stage === 0) return; // stage 0 is the tier picker, not a tap target
+    if (picking) return; // the shop counter is not a tap-to-advance target
     if (pack.busy) return;
 
     setStage((s) => {
-      if (s >= 3) {
+      if (s >= PULLED) {
         // Step through the remaining cards before offering another pack.
         const more = (pulled?.length ?? 0) - 1;
         if (revealed < more) {
           setRevealed((r) => r + 1);
           play('tap');
           haptic('light');
-          return 3;
+          return PULLED;
         }
         pack.reset();
         setRevealed(0);
-        return 0;
+        // Back to the shop counter. `picking` is what shows it now -- stage 0
+        // means SEALED, so returning 0 alone would strand you on a sealed
+        // pack with nothing behind it.
+        setPicking(true);
+        return SEALED;
       }
-      const next = s + 1;
-      if (next === 3) { play('legendary'); haptic('success'); }
+      const next = (s + 1) as RevealStage;
+      if (next === PULLED) { play('legendary'); haptic('success'); }
       else { play('tap'); haptic('light'); }
       return next;
     });
@@ -210,9 +225,7 @@ export default function PacksScreen() {
     else if (hero.rarity === 'epic') { play('legendary'); haptic('medium'); }
   }, [stage, hero, revealed, play, haptic]);
 
-  const packVisible = stage < 3;
-  const cardOut = stage >= 1;
-  const spot = stage >= 2;
+  const { packVisible, cardOut, spotlight: spot, torn } = viewFor(stage);
   const openedDef = pack.openedTier ? PACKS[pack.openedTier] : null;
 
   const revealTransform =
@@ -224,7 +237,7 @@ export default function PacksScreen() {
           ? 'translate(-50%,-190px) scale(1.02)'
           : 'translate(-50%,-200px) scale(1.06)';
 
-  if (stage === 0) {
+  if (picking) {
     return (
       <PhoneShell>
         <div
@@ -511,7 +524,7 @@ export default function PacksScreen() {
         <SealedPack
           spotlight={spot}
           visible={packVisible}
-          torn={stage >= 1}
+          torn={torn}
           cost={openedDef?.cost ?? 0}
           size={openedDef?.size ?? 0}
         />

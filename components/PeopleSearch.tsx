@@ -113,7 +113,7 @@ function PersonRow({
   );
 }
 
-export function PeopleSearch() {
+export function PeopleSearch({ onFollowChange }: { onFollowChange?: () => void } = {}) {
   const haptic = useHaptics();
 
   const [q, setQ] = useState('');
@@ -177,9 +177,12 @@ export function PeopleSearch() {
       });
     } else {
       await loadFollowing();
+      // A follower count rendered beside this component would otherwise sit
+      // stale, disagreeing with the list directly underneath it.
+      onFollowChange?.();
     }
     setBusyId(null);
-  }, [haptic, loadFollowing]);
+  }, [haptic, loadFollowing, onFollowChange]);
 
   const term = q.trim();
   const showing = term.length >= 2 ? results : null;

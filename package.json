@@ -16,7 +16,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "seed:cards": "tsx scripts/seed-cards.ts",
     "seed:verify": "tsx scripts/seed-verify.ts",
-    "cap:sync": "next build && npx cap sync android",
+    "cap:sync": "node scripts/build-capacitor.mjs && npx cap sync android",
     "apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
     "apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease"
   },

@@ -6,12 +6,13 @@
  * template as a Song Card, different data source.
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { Avatar } from '@/components/Avatar';
 import { AccountSettings } from '@/components/AccountSettings';
+import { PeopleSearch } from '@/components/PeopleSearch';
 import { PROFILE_FRAME, RARITY, avatarFor, rarityTextVar } from '@/lib/rarity';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
@@ -37,12 +38,16 @@ export default function ProfileScreen() {
      from the follows table rather than reading a stored counter that could
      drift out of step with reality. */
   const [social, setSocial] = useState<FollowCounts>({ followers: 0, following: 0 });
-  useEffect(() => {
+
+  /* Re-readable, because following somebody from the search below changes
+     these numbers -- a count that disagreed with the list under it would be
+     worse than no count. */
+  const loadSocial = useCallback(() => {
     if (!isSignedIn) { setSocial({ followers: 0, following: 0 }); return; }
-    let cancelled = false;
-    void fetchFollowCounts(profile.id).then((c) => { if (!cancelled) setSocial(c); });
-    return () => { cancelled = true; };
+    void fetchFollowCounts(profile.id).then(setSocial);
   }, [isSignedIn, profile.id]);
+
+  useEffect(() => { loadSocial(); }, [loadSocial]);
   /*
     The binder is the player's OWN collection. It used to render the whole
     global catalogue, so every player's binder looked identical and showed
@@ -219,6 +224,16 @@ export default function ProfileScreen() {
             </div>
           </div>
         </div>
+
+        {/*
+          Finding people, here as well as on the ROOM lobby.
+
+          The follower and following counts directly above are the moment you
+          wonder who those people ARE, so the search and the lists belong
+          next to them rather than only on another tab. Same component both
+          places: one search, one follow button, one presence dot.
+        */}
+        {isSignedIn && <PeopleSearch onFollowChange={loadSocial} />}
 
         {/* Edit profile — display name only. The handle is generated at
             signup and stays read-only; other players may already know it. */}
