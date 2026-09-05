@@ -999,11 +999,33 @@ export async function deleteAccount(): Promise<{ ok: true } | { error: string }>
   const db = supabase();
   if (!db) return { error: 'Not connected.' };
 
-  const { error } = await db.rpc('delete_own_account');
+  /*
+    The RPC removes every row -- ownership, pins, follows, activity, RSVPs,
+    reigns, room membership, nominations, votes, the mic queue and hosted
+    events -- returns the owned cards to supply, and hands back the paths of
+    any avatar files it could not delete itself.
+
+    It cannot delete those files: Supabase's storage.protect_delete() trigger
+    raises on a direct DELETE from storage.objects, which would abort the
+    whole transaction and leave the account half-removed. Files go through
+    the Storage API, which only a client can call.
+  */
+  const { data: avatarPaths, error } = await db.rpc('delete_own_account');
   if (error) {
     console.warn('[supabase] deleteAccount:', error.message);
     return { error: 'Could not delete the account.' };
   }
+
+  // Best effort, and deliberately not fatal: the account is already gone by
+  // this point, so failing here would report an error for a deletion that
+  // actually succeeded. An orphaned image is a wasted byte, not a broken
+  // account.
+  const paths = (avatarPaths as string[] | null) ?? [];
+  if (paths.length > 0) {
+    const { error: rmErr } = await db.storage.from('avatars').remove(paths);
+    if (rmErr) console.warn('[supabase] deleteAccount (avatars):', rmErr.message);
+  }
+
   await db.auth.signOut();
   return { ok: true };
 }
@@ -1111,6 +1133,90 @@ export async function fetchJoinCode(roomUuid: string): Promise<string | null> {
   if (!db) return null;
   const { data } = await db.from('rooms').select('join_code').eq('id', roomUuid).single();
   return (data as { join_code: string | null } | null)?.join_code ?? null;
+}
+
+/* ── Finding people ─────────────────────────────────────────────────── */
+
+export interface PersonResult {
+  id: string;
+  handle: string;
+  displayName: string;
+  initials: string;
+  avatarUrl: string | null;
+  avatarGradient: string | null;
+  /** Only search results carry this; the follow lists do not count. */
+  followers: number;
+  online: boolean;
+}
+
+type DbPerson = {
+  id: string;
+  handle: string;
+  display_name: string;
+  initials: string | null;
+  avatar_url: string | null;
+  avatar_gradient: string | null;
+  followers?: number;
+  is_online: boolean;
+};
+
+const toPerson = (r: DbPerson): PersonResult => ({
+  id: r.id,
+  handle: r.handle,
+  displayName: r.display_name,
+  initials: r.initials ?? r.display_name.slice(0, 2).toUpperCase(),
+  avatarUrl: r.avatar_url,
+  avatarGradient: r.avatar_gradient,
+  followers: Number(r.followers ?? 0),
+  online: r.is_online,
+});
+
+/**
+ * Searches people by handle or display name.
+ *
+ * A function rather than a client-side `ilike`, because an open filter over
+ * `profiles` lets anyone page through every account in the database. The SQL
+ * requires a real query (two characters), caps the result count, and returns
+ * only the columns a search row actually renders.
+ */
+export async function searchPeople(q: string): Promise<PersonResult[]> {
+  const db = supabase();
+  if (!db || q.trim().length < 2) return [];
+  const { data, error } = await db.rpc('search_profiles', { q, lim: 20 });
+  if (error) {
+    console.warn('[supabase] searchPeople:', error.message);
+    return [];
+  }
+  return ((data as DbPerson[] | null) ?? []).map(toPerson);
+}
+
+/** The people you follow, or the ones following you. */
+export async function fetchFollowList(
+  direction: 'following' | 'followers',
+): Promise<PersonResult[]> {
+  const db = supabase();
+  if (!db) return [];
+  const { data, error } = await db.rpc('list_follows', { direction });
+  if (error) {
+    console.warn('[supabase] fetchFollowList:', error.message);
+    return [];
+  }
+  return ((data as DbPerson[] | null) ?? []).map(toPerson);
+}
+
+/**
+ * Says "I am here".
+ *
+ * Presence lives on `profiles.last_active_at` rather than on
+ * `room_members.last_seen_at`, which only ticks while you are inside a room
+ * -- someone browsing the shop would read as offline. Anything newer than
+ * two minutes counts as online, which survives a screen lock without
+ * claiming someone is present half an hour after they closed the app.
+ */
+export async function touchPresence(): Promise<void> {
+  const db = supabase();
+  if (!db) return;
+  await db.rpc('touch_presence');
 }
 
 /* ── Social counts ──────────────────────────────────────────────────── */

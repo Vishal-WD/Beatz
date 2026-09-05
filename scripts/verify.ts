@@ -10,6 +10,30 @@
  * would do the most damage (docs/IMPROVEMENTS.md #14).
  */
 
+/*
+  Load .env.local, the same file Next.js reads.
+
+  Without this every database-backed check below reported "skipped (no
+  Supabase credentials in env)" on a machine that has the credentials sitting
+  in .env.local -- so the card-pool and social-guard-rail checks had quietly
+  been running as no-ops rather than failing when something was wrong.
+*/
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+try {
+  for (const line of readFileSync(resolve(__dirname, '..', '.env.local'), 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    if (!m) continue;
+    // Strip surrounding quotes, which dotenv-style files often carry.
+    const value = m[2].trim().replace(/^["'](.*)["']$/, '$1');
+    if (!process.env[m[1]]) process.env[m[1]] = value;
+  }
+} catch {
+  // No .env.local is fine -- the pure-function checks still run, and the
+  // database-backed ones say they were skipped.
+}
+
 import { deriveStats, rarityForP, supplyTotal, decayRateFor, startingVibeFor,
   compositePopularity, HYPE_STAMINA_MIN, HYPE_STAMINA_MAX } from '../lib/stats';
 import { RARITY } from '../lib/rarity';
@@ -330,6 +354,85 @@ async function socialGuardRails() {
     evs.every((e) => modeOf(e) === 'casual' || modeOf(e) === 'event'));
 }
 
+
+/*
+  OWNERSHIP INTEGRITY
+
+  A card's serial number was derived as `supply_total - supply_remaining` --
+  a POSITION in the supply, not an identity. That only holds while supply
+  moves one way. Deleting an account returns the copies to the pool
+  (CLAUDE.md §3 keeps supply finite and accurate), supply_remaining goes back
+  up, and the next mint recomputes a number somebody already holds. Because
+  grant_starter_pack runs from the handle_new_user trigger, the resulting
+  unique violation aborted the whole SIGNUP: one deleted account could stop
+  the next person creating one.
+
+  All four mint paths now draw from cards.serial_issued, which only counts
+  up. These checks watch the property that fix guarantees.
+*/
+async function ownershipIntegrity() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    console.log('  - skipped (no Supabase credentials in env)');
+    return;
+  }
+
+  /*
+    Read the aggregate report rather than the rows.
+
+    Selecting card_ownership directly returns nothing here: RLS
+    (ownership_read_own) correctly limits it to the caller's own cards, so an
+    anon key sees zero rows and every check below would pass vacuously. The
+    ownership_integrity() function is SECURITY DEFINER and returns counts
+    only -- the invariant is checkable without exposing who owns what.
+  */
+  const res = await fetch(`${url}/rest/v1/rpc/ownership_integrity`, {
+    method: 'POST',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+
+  if (!res.ok) {
+    check('ownership report is readable', false, `HTTP ${res.status}`);
+    return;
+  }
+
+  const rows = (await res.json()) as {
+    owned_rows: number;
+    duplicate_serials: number;
+    nonpositive_serials: number;
+    serial_over_issued: number;
+    orphaned_ownership: number;
+    counter_behind: number;
+  }[];
+  const r = Array.isArray(rows) ? rows[0] : rows;
+
+  if (!r || r.owned_rows === 0) {
+    console.log('  - skipped (nobody owns anything yet)');
+    return;
+  }
+
+  check('no two copies of a card share a serial number',
+    r.duplicate_serials === 0, `${r.duplicate_serials} duplicate(s)`);
+
+  check('every serial is a positive number',
+    r.nonpositive_serials === 0, `${r.nonpositive_serials} bad`);
+
+  check('no serial exceeds what its card has issued',
+    r.serial_over_issued === 0, `${r.serial_over_issued} over`);
+
+  check('no card is owned by a deleted account',
+    r.orphaned_ownership === 0, `${r.orphaned_ownership} orphaned`);
+
+  check('the issued counter never runs behind the copies out on loan',
+    r.counter_behind === 0, `${r.counter_behind} behind`);
+}
+
 // ---------------------------------------------------------------------------
 // The social checks hit the network, so the summary has to wait for them. A
 // plain top-level await is not available under this script's cjs transform,
@@ -346,6 +449,9 @@ async function main() {
   }
 
   await socialGuardRails();
+
+  section('OWNERSHIP INTEGRITY');
+  await ownershipIntegrity();
 
   console.log(`\n${'─'.repeat(52)}`);
   if (failures === 0) {
