@@ -2,6 +2,7 @@
 
 /** Status bar + bottom tab nav shared by the phone screens (02/04/05/06). */
 
+import { MiniPlayer } from '@/components/MiniPlayer';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -160,6 +161,9 @@ export function PhoneShell({ children }: { children: React.ReactNode }) {
       <main id="main" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
         {children}
       </main>
+      {/* Above the tabs and inside the shell, so it survives navigation. It
+          renders nothing when the player is idle. */}
+      <MiniPlayer />
       <TabBar />
     </div>
   );

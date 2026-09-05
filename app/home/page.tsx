@@ -16,18 +16,18 @@
  * make the count disagree with the collection.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { EmptyState, Button } from '@/components/ui';
 import { useOwnedCards } from '@/lib/useOwnedCards';
-import { usePreviewAudio } from '@/lib/usePreviewAudio';
+import { usePlayer } from '@/lib/usePlayer';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
 import { rarityTextVar } from '@/lib/rarity';
 import type { SongCard } from '@/types/cards';
 import {
-  shuffleCards, applyOrder, nextPlayable as nextAfter, firstPlayable,
+  shuffleCards, applyOrder, firstPlayable,
 } from '@/lib/domain/playback-queue';
 
 /** mm:ss. Only ever called with a duration the audio element actually reported. */
@@ -65,67 +65,32 @@ export default function HomeScreen() {
      so the queue can never be shorter than the collection it represents. */
   const queue = useMemo(() => applyOrder(cards, order), [cards, order]);
 
-  // One id drives one usePreviewAudio call — one <audio> element for the
-  // whole library, so two tracks can never overlap.
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const playingCard = queue.find((c) => c.id === playingId) ?? null;
-  const previewUrl = playingCard?.previewUrl ?? null;
-  const preview = usePreviewAudio(previewUrl);
-  const { state: audioState, playing, toggle, stop, duration } = preview;
-
   /*
-    usePreviewAudio only builds its <audio> element once the url effect has
-    run for the NEW id, so the `toggle` captured during the tap's own render
-    is still bound to the previous url and would no-op. Record the intent,
-    act on it from an effect keyed on the resolved url — that effect always
-    sees the toggle wired to the current element. (Same shape as the binder
-    on app/profile/page.tsx; the failure it avoids is a silent one.)
-  */
-  const wantPlayRef = useRef<string | null>(null);
+    Playback lives in lib/usePlayer.ts, not here.
 
-  useEffect(() => {
-    if (!previewUrl) return;
-    if (wantPlayRef.current !== playingId) return;
-    if (playing) return;
-    wantPlayRef.current = null;
-    toggle();
-  }, [previewUrl, playingId, playing, toggle]);
+    This screen used to own its own <audio> element, so leaving the tab tore
+    it down and the music stopped. The element is now at module scope,
+    outside React's tree, and every screen subscribes to it — which is what
+    lets the mini-player keep going across navigation.
+
+    The wantPlayRef dance that used to sit here is gone with it: it existed
+    only because the element was rebuilt whenever the url changed, so the
+    `toggle` captured during a tap's render was bound to the previous
+    element. A single persistent element has no such window.
+  */
+  const player = usePlayer();
+  const playingId = player.card?.id ?? null;
+  const { playing, state: audioState, duration } = player;
 
   /** Start `id`, or stop it if it is already the one playing. */
-  const start = useCallback((id: string) => {
-    setPlayingId((current) => {
-      if (current === id) {
-        stop();
-        wantPlayRef.current = null;
-        return null;
-      }
-      wantPlayRef.current = id;
-      return id;
-    });
-  }, [stop]);
-
-  /*
-    Auto-advance. 'ended' is the hook's own terminal state, so this needs no
-    timer and no polling — and it stops at the end of the list rather than
-    looping, because a library that restarts itself is a library you cannot
-    put down.
-
-    nextPlayable() treats "the playing card is not in the queue" as "start
-    from the top", which is the honest answer when the queue was reordered
-    underneath a playing track. The old arithmetic asked findIndex for an
-    index and stopped playback outright when it came back -1.
-  */
-  useEffect(() => {
-    if (audioState !== 'ended' || !playingId) return;
-    const next = nextAfter(queue, playingId);
-    if (next) {
-      wantPlayRef.current = next.id;
-      setPlayingId(next.id);
-    } else {
-      setPlayingId(null);
-      wantPlayRef.current = null;
-    }
-  }, [audioState, playingId, queue]);
+  const playFrom = useCallback((id: string) => {
+    if (playingId === id) { player.toggle(); return; }
+    const card = queue.find((c) => c.id === id);
+    if (!card?.previewUrl) return;
+    player.play(card, queue);
+    play('tap');
+    haptic('light');
+  }, [playingId, queue, player, play, haptic]);
 
   const playAll = useCallback(() => {
     setOrder(null);
@@ -133,9 +98,8 @@ export default function HomeScreen() {
     if (!first) return;
     play('tap');
     haptic('light');
-    wantPlayRef.current = first.id;
-    setPlayingId(first.id);
-  }, [cards, play, haptic]);
+    player.play(first, cards);
+  }, [cards, play, haptic, player]);
 
   const shuffle = useCallback(() => {
     const next = shuffleCards(cards);
@@ -145,24 +109,11 @@ export default function HomeScreen() {
     play('tap');
     haptic('light');
 
-    /*
-      Re-shuffling can land on the track already playing. setPlayingId with
-      the same id changes no url, so usePreviewAudio never rebuilds its
-      <audio> element and the play-on-url-change effect early-returns on
-      `playing` -- leaving wantPlayRef set forever while the list on screen
-      reordered underneath the audio. The visible queue and what you heard
-      disagreed from then on.
-
-      Clearing the id first forces the url through null, so the next render
-      genuinely remounts and starts the new order from its top.
-    */
-    if (playingId === first.id) {
-      stop();
-      setPlayingId(null);
-    }
-    wantPlayRef.current = first.id;
-    setPlayingId(first.id);
-  }, [cards, play, haptic, playingId, stop]);
+    /* The shared player reloads on a new card and resumes on the same one,
+       so re-shuffling onto the track already playing keeps it playing while
+       the NEW order becomes the queue. No remount, no desync. */
+    player.play(first, next);
+  }, [cards, play, haptic, player]);
 
   const playableCount = queue.filter((c) => c.previewUrl).length;
 
@@ -269,7 +220,7 @@ export default function HomeScreen() {
                 /* Tapping a row plays it in the order already on screen.
                    It does not clear a shuffle — the queue you can see is
                    the queue that keeps playing. */
-                start(card.id);
+                playFrom(card.id);
               }}
             />
           ))}
