@@ -16,20 +16,28 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   WHEEL, SPIN_COST, freeSpinIn, freeSpinReady, formatWait, landingAngle,
 } from '@/lib/domain/wheel';
-import { DropsAmount } from '@/components/DropsIcon';
+import { DropsAmount, DropsIcon } from '@/components/DropsIcon';
 import { spinWheel } from '@/lib/supabase';
 import { useSound } from '@/lib/useSound';
 import { useHaptics } from '@/lib/useHaptics';
 
 const SEG = 360 / WHEEL.length;
 
-/** Colour per segment, warming as the prize climbs. */
-function segTone(value: number): string {
-  if (value >= 1000) return 'var(--neon-gold)';
-  if (value >= 500) return 'var(--neon-pink)';
-  if (value >= 250) return 'var(--neon-violet)';
-  if (value > 0) return 'var(--neon-cyan)';
-  return 'var(--ink-25)';
+/**
+ * Colour per segment, warming as the prize climbs.
+ *
+ * A conic-gradient can only take flat colour stops per slice, so depth comes
+ * from a radial sheen laid over the whole wheel rather than from per-slice
+ * gradients. Alternating light/dark within a tier keeps neighbouring slices
+ * of the same prize (there are two 100s) from merging into one wide band.
+ */
+function segTone(value: number, i: number): string {
+  const alt = i % 2 === 1;
+  if (value >= 1000) return alt ? '#ffe27a' : 'var(--neon-gold)';
+  if (value >= 500) return alt ? '#ff5c88' : 'var(--neon-pink)';
+  if (value >= 250) return alt ? '#c77dff' : 'var(--neon-violet)';
+  if (value > 0) return alt ? '#7ad4ff' : 'var(--neon-cyan)';
+  return alt ? 'rgba(120,116,140,.85)' : 'rgba(96,92,112,.85)';
 }
 
 export function SpinWheel({
@@ -146,18 +154,23 @@ export function SpinWheel({
         <div
           aria-hidden
           style={{
-            position: 'absolute', top: -2, left: '50%', transform: 'translateX(-50%)',
-            width: 0, height: 0, zIndex: 3,
-            borderLeft: '9px solid transparent',
-            borderRight: '9px solid transparent',
-            borderTop: '16px solid var(--ink)',
+            position: 'absolute', top: -8, left: '50%', transform: 'translateX(-50%)',
+            width: 0, height: 0, zIndex: 4,
+            borderLeft: '11px solid transparent',
+            borderRight: '11px solid transparent',
+            // Points DOWN into the wheel, sitting above the new gold rim.
+            borderTop: '20px solid var(--ink)',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.6))',
           }}
         />
 
         <div
           style={{
             width: '100%', height: '100%', borderRadius: '50%',
-            border: '3px solid var(--hairline)',
+            // A gold rim with an outer glow, so the wheel reads as an object
+            // rather than a flat pie chart.
+            border: '4px solid var(--neon-gold)',
+            boxShadow: '0 0 0 2px rgba(0,0,0,.45), 0 10px 30px rgba(0,0,0,.5), inset 0 0 22px rgba(0,0,0,.55)',
             position: 'relative', overflow: 'hidden',
             transform: `rotate(${angle}deg)`,
             transition: spinning
@@ -166,11 +179,38 @@ export function SpinWheel({
               ? 'transform 4s cubic-bezier(0.16, 1, 0.3, 1)'
               : 'none',
             background: `conic-gradient(${WHEEL.map((s, i) => {
-              const tone = segTone(s.value);
+              const tone = segTone(s.value, i);
               return `${tone} ${i * SEG}deg ${(i + 1) * SEG}deg`;
             }).join(', ')})`,
           }}
         >
+          {/* Spokes: a hairline between slices, so adjacent segments read as
+              separate wedges instead of one continuous sweep. */}
+          {WHEEL.map((_, i) => (
+            <span
+              key={`spoke-${i}`}
+              aria-hidden
+              style={{
+                position: 'absolute', left: '50%', top: '50%',
+                width: 2, height: '50%',
+                transformOrigin: '0 0',
+                transform: `rotate(${i * SEG}deg)`,
+                background: 'rgba(0,0,0,.32)',
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
+
+          {/* A single specular sheen across the top, which is what stops a
+              conic-gradient looking like a spreadsheet chart. */}
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              background: 'radial-gradient(circle at 32% 24%, rgba(255,255,255,.30), transparent 52%)',
+              pointerEvents: 'none',
+            }}
+          />
           {WHEEL.map((s, i) => (
             <span
               key={i}
@@ -178,15 +218,34 @@ export function SpinWheel({
                 position: 'absolute', left: '50%', top: '50%',
                 transform: `rotate(${i * SEG + SEG / 2}deg) translateY(-78px)`,
                 transformOrigin: '0 0',
-                font: '700 11px/1 var(--font-stat)',
-                color: 'var(--ink-on-neon)',
+                font: '700 12px/1 var(--font-stat)',
+                color: '#1a1526',
+                textShadow: '0 1px 0 rgba(255,255,255,.35)',
                 whiteSpace: 'nowrap',
+                zIndex: 1,
               }}
             >
               {s.label === 'BETTER LUCK' ? '—' : s.label}
             </span>
           ))}
         </div>
+
+        {/* Hub, over the spokes' meeting point — which would otherwise be a
+            visible knot of overlapping lines. */}
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute', left: '50%', top: '50%',
+            width: 46, height: 46, marginLeft: -23, marginTop: -23,
+            borderRadius: '50%', zIndex: 2,
+            background: 'radial-gradient(circle at 38% 32%, #2a2340, #14101f)',
+            border: '2px solid var(--neon-gold)',
+            boxShadow: '0 4px 14px rgba(0,0,0,.55)',
+            display: 'grid', placeItems: 'center',
+          }}
+        >
+          <DropsIcon size={18} />
+        </span>
       </div>
 
       {/* The result, in words. Colour alone would not say what happened. */}

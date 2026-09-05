@@ -8,7 +8,7 @@
  * before showing you anything loses the room.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { supabase, isSupabaseConfigured, type DbProfile } from './supabase';
 
 export type AuthState = 'loading' | 'signed-in' | 'anonymous';
@@ -33,57 +33,108 @@ export const GUEST_PROFILE: DbProfile = {
   challenger_attempts: 0,
 };
 
+
+/*
+  ONE shared auth state, not one per call site.
+
+  useAuth() used plain useState, so every call created an independent copy
+  with its own profile and its own fetch. The shop screen calls it once and
+  usePacks() calls it again, so refreshProfile() after a spin updated one
+  copy while the balance on screen was rendered from the other -- the Drops
+  only appeared after navigating away and back, which remounted the second
+  copy and made it refetch. The welcome screen called it three times.
+
+  A module-level store with subscribers means every consumer sees the same
+  profile the moment it changes, and the session is fetched once rather than
+  once per hook.
+*/
+interface AuthSnapshot {
+  state: AuthState;
+  profile: DbProfile;
+  error: string | null;
+}
+
+let snapshot: AuthSnapshot = {
+  state: isSupabaseConfigured ? 'loading' : 'anonymous',
+  profile: GUEST_PROFILE,
+  error: null,
+};
+
+const listeners = new Set<() => void>();
+
+function setSnapshot(patch: Partial<AuthSnapshot>) {
+  // A new object identity every time, so useSyncExternalStore actually
+  // notices. Mutating in place would leave every consumer stale.
+  snapshot = { ...snapshot, ...patch };
+  for (const l of listeners) l();
+}
+
+function subscribe(fn: () => void) {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+const getSnapshot = () => snapshot;
+
+/** Reads the profile row behind the private view. Shared by every consumer. */
+async function loadProfileInto(userId: string) {
+  const db = supabase();
+  if (!db) return;
+  // my_profile is a security_invoker view scoped to auth.uid(). The
+  // `profiles` table is world-readable so the social layer can show handles
+  // and tiers, which would also have exposed every player's Drops balance;
+  // the private economy columns live behind this view.
+  const { data } = await db.from('my_profile').select('*').eq('id', userId).single();
+  if (data) setSnapshot({ profile: data as DbProfile, state: 'signed-in' });
+  // The signup trigger creates the row; a miss means it has not committed
+  // yet. Stay anonymous rather than rendering a broken profile.
+  else setSnapshot({ state: 'anonymous' });
+}
+
+/** Re-reads the profile. Call after anything that changes it server-side. */
+export async function refreshAuthProfile() {
+  const db = supabase();
+  if (!db) return;
+  const { data } = await db.auth.getUser();
+  if (data.user) await loadProfileInto(data.user.id);
+}
+
+/*
+  The session listener is installed ONCE for the process, not once per
+  mounted hook. Several hooks mounting used to mean several subscriptions
+  and several redundant fetches of the same session.
+*/
+let wired = false;
+function ensureWired() {
+  if (wired) return;
+  const db = supabase();
+  if (!db) return;
+  wired = true;
+
+  void db.auth.getSession().then(({ data }) => {
+    if (data.session?.user) void loadProfileInto(data.session.user.id);
+    else setSnapshot({ state: 'anonymous' });
+  });
+
+  db.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) void loadProfileInto(session.user.id);
+    else setSnapshot({ state: 'anonymous', profile: GUEST_PROFILE });
+  });
+}
+
 export function useAuth() {
-  const [state, setState] = useState<AuthState>(
-    isSupabaseConfigured ? 'loading' : 'anonymous',
-  );
-  const [profile, setProfile] = useState<DbProfile>(GUEST_PROFILE);
-  const [error, setError] = useState<string | null>(null);
+  /*
+    Subscribes to the ONE shared snapshot rather than holding its own. Every
+    call site now sees the same profile the instant it changes; previously
+    each call had private state, so a refresh in one component left the
+    others showing a stale balance until they happened to remount.
+  */
+  const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { state, profile, error } = snap;
 
-  const loadProfile = useCallback(async (userId: string) => {
-    const db = supabase();
-    if (!db) return;
-    // my_profile is a security_invoker view scoped to auth.uid(). The
-    // `profiles` table is world-readable so the social layer can show
-    // handles and tiers, which would also have exposed every player's
-    // Drops balance; the private economy column lives behind this view.
-    const { data } = await db.from('my_profile').select('*').eq('id', userId).single();
-    if (data) {
-      setProfile(data as DbProfile);
-      setState('signed-in');
-    } else {
-      // The signup trigger creates the row; a miss here means it has not
-      // committed yet. Stay anonymous rather than rendering a broken profile.
-      setState('anonymous');
-    }
-  }, []);
+  useEffect(() => { ensureWired(); }, []);
 
-  useEffect(() => {
-    const db = supabase();
-    if (!db) return;
-
-    let cancelled = false;
-
-    db.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      if (data.session?.user) void loadProfile(data.session.user.id);
-      else setState('anonymous');
-    });
-
-    const { data: sub } = db.auth.onAuthStateChange((_event, session) => {
-      if (cancelled) return;
-      if (session?.user) void loadProfile(session.user.id);
-      else {
-        setProfile(GUEST_PROFILE);
-        setState('anonymous');
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, [loadProfile]);
+  const setError = useCallback((msg: string | null) => setSnapshot({ error: msg }), []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const db = supabase();
@@ -130,12 +181,9 @@ export function useAuth() {
     return { ok: true, message: '' };
   }, []);
 
-  const refreshProfile = useCallback(async () => {
-    const db = supabase();
-    if (!db) return;
-    const { data: auth } = await db.auth.getUser();
-    if (auth.user) await loadProfile(auth.user.id);
-  }, [loadProfile]);
+  /* Refreshes the SHARED snapshot, so every consumer updates at once —
+     the shop balance, the profile card, the welcome screen. */
+  const refreshProfile = useCallback(() => refreshAuthProfile(), []);
 
   const signOut = useCallback(async () => {
     await supabase()?.auth.signOut();

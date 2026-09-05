@@ -19,6 +19,9 @@ export type PreviewState = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' |
 
 export function usePreviewAudio(url: string | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  /* Whether the user has asked for playback. A retry after a dead node must
+     resume only if it was already playing. */
+  const wantedRef = useRef(false);
   const [state, setState] = useState<PreviewState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -50,7 +53,33 @@ export function usePreviewAudio(url: string | null) {
     const onPlaying = () => setState('playing');
     const onPause = () => setState((s) => (s === 'ended' ? s : 'paused'));
     const onEnd = () => setState('ended');
-    const onErr = () => setState('error');
+    /*
+      Retry once before giving up.
+
+      Audius load-balances a stream across content nodes and some are down,
+      answering 503 — and the assignment is sticky per track, so a card
+      pointed at a dead node failed EVERY time rather than intermittently.
+      Re-requesting gets a fresh redirect and usually a healthy node.
+
+      A cache-busting param is required: without it the browser reuses the
+      failed response and the retry is a no-op. One retry only, so a
+      genuinely dead track surfaces as an error instead of looping.
+    */
+    let retried = false;
+    const onErr = () => {
+      if (!retried && url) {
+        retried = true;
+        setState('loading');
+        const sep = url.includes('?') ? '&' : '?';
+        a.src = `${url}${sep}_r=${Date.now()}`;
+        a.load();
+        // Only resume if the player was already trying to play, so a retry
+        // never starts audio the user did not ask for.
+        if (wantedRef.current) void a.play().catch(() => setState('error'));
+        return;
+      }
+      setState('error');
+    };
     const onWait = () => setState('loading');
 
     a.addEventListener('loadedmetadata', onLoad);
@@ -95,10 +124,12 @@ export function usePreviewAudio(url: string | null) {
     const a = audioRef.current;
     if (!a) return;
     if (a.paused) {
+      wantedRef.current = true;
       // play() rejects when the browser blocks autoplay; surface it rather
       // than leaving the button looking broken.
       void a.play().catch(() => setState('error'));
     } else {
+      wantedRef.current = false;
       a.pause();
     }
   }, []);
