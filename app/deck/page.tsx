@@ -575,16 +575,33 @@ export default function DeckScreen() {
           }}
         >
           {deckCard ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-              <SongCardView card={deckCard} size="md" showSerial />
-              <div style={{ width: '100%' }}>
-                <NowPlaying
-                  card={deckCard}
-                  vibe={vibe}
-                  compact
-                  format={dbRoom?.format ?? DEFAULT_FORMAT}
-                  credit={cardCredit}
-                />
+            /*
+              Card and player SIDE BY SIDE, not stacked.
+
+              Stacked, the slot came to 431px on a 390x844 phone -- the card
+              art alone is 209px and the player sat underneath it -- which
+              pushed 197px past the fold, so Hold to Vibe and the hand rail
+              fell off the screen while a card was in play. Scrolling to
+              reach the hold button mid-reign loses you the throne, which is
+              the same reason the slot's height was clamped in the first
+              place.
+
+              A row fits both inside the clamp: the card shrinks to `sm`
+              because at this size it is an identifier, not the thing you
+              read stats off -- those are in the player beside it.
+            */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                <SongCardView card={deckCard} size="sm" showSerial />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <NowPlaying
+                    card={deckCard}
+                    vibe={vibe}
+                    compact
+                    format={dbRoom?.format ?? DEFAULT_FORMAT}
+                    credit={cardCredit}
+                  />
+                </div>
               </div>
               <button
                 onClick={() => { setDeckId(null); play('tap'); }}
