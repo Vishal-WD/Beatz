@@ -53,3 +53,6 @@ yarn-error.log*
 
 # Probe/dev scratch: server logs and screenshots, not source.
 .tmp/
+
+# Local realtime server output during LAN testing.
+.server.log

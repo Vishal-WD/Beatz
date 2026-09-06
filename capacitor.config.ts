@@ -18,9 +18,17 @@ const config: CapacitorConfig = {
 
   server: {
     androidScheme: 'https',
-    // The APK talks to the hosted backend; it bundles no server of its own.
-    // cleartext stays false — Render and Vercel are both HTTPS.
-    cleartext: false,
+    /*
+      The APK talks to the hosted backend; it bundles no server of its own.
+      cleartext stays false — Render and Vercel are both HTTPS.
+
+      LAN_DEV=1 opens it, and ONLY then, so a phone can reach a realtime
+      server running on a laptop over plain http://192.168.x.x during
+      testing. It is deliberately an explicit opt-in rather than a value
+      someone edits and forgets: a release built without the flag cannot
+      ship cleartext by accident.
+    */
+    cleartext: process.env.LAN_DEV === '1',
   },
 
   plugins: {
