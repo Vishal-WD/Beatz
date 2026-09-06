@@ -60,12 +60,20 @@ git push -u origin core-domain-rebuild
      one, because two processes would each hold their own copy of a room.
 
    Then add two more that `render.yaml` does not declare, because they are
-   secrets. **Without them the server runs fine but records nothing** — it
+   secrets. **Without them nobody can play a card at all.** The server resolves
+   every `card:play` against the card table; with no credentials that pool
+   is empty, so it answers `CARD_NOT_FOUND` to every play, no reign starts,
+   and the room stays silent for everyone -- which looks exactly like "my
+   friend plays a song and I hear nothing". Reigns also go unrecorded — it
    logs `reign persistence OFF` at startup and the activity feed and profile
    stats stay empty however long people play:
 
    - **`SUPABASE_URL`** — the same project URL as `NEXT_PUBLIC_SUPABASE_URL`
      in `.env.local`.
+   - **`SUPABASE_ANON_KEY`** — the same publishable key as
+     `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `.env.local`. This reads the card
+     catalogue; `cards` is public under RLS, so that read deliberately does
+     not use the service key.
    - **`SUPABASE_SERVICE_ROLE_KEY`** — Supabase dashboard → **Project
      Settings → API → service_role**. This key bypasses RLS, which is why
      the server needs it (it writes reigns on behalf of whoever holds the

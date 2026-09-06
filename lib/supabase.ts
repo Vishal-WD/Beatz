@@ -880,7 +880,9 @@ export async function fetchOpenRooms(): Promise<DbRoom[]> {
   if (!db) return [];
   const { data, error } = await db
     .from('rooms')
-    .select('*')
+    // Explicit columns, not '*': join_code is no longer selectable by the
+    // client, and '*' would ask for it and get a 403 for the whole query.
+    .select('id,slug,name,mode,host_id,vibe,solo_practice,is_open,updated_at,format,visibility,mic_mode')
     .eq('is_open', true)
     .order('updated_at', { ascending: false })
     .limit(40);
@@ -1127,12 +1129,24 @@ export async function fetchRoomCounts(): Promise<Record<string, number>> {
   return out;
 }
 
-/** The host's shareable code. Null for open rooms, which need none. */
+/**
+ * The host's shareable code. Null for open rooms, which need none.
+ *
+ * Through an RPC rather than a select, because `rooms.join_code` is no
+ * longer readable from the client: a plain select returned every private
+ * room's code to anyone holding the public anon key, which made the guest
+ * list decorative -- the door announced along with its key. The function
+ * returns it only to the host or someone already admitted.
+ */
 export async function fetchJoinCode(roomUuid: string): Promise<string | null> {
   const db = supabase();
   if (!db) return null;
-  const { data } = await db.from('rooms').select('join_code').eq('id', roomUuid).single();
-  return (data as { join_code: string | null } | null)?.join_code ?? null;
+  const { data, error } = await db.rpc('room_join_code', { p_room: roomUuid });
+  if (error) {
+    console.warn('[supabase] fetchJoinCode:', error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
 }
 
 /* ── Finding people ─────────────────────────────────────────────────── */

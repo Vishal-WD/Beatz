@@ -231,7 +231,7 @@ setInterval(() => {
   }
 }, VIBE_TICK_MS);
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`[beatz] realtime server on :${PORT}`);
   // Say plainly whether reigns are being recorded. Silent in-memory-only
   // operation is how the feed stayed empty without anyone noticing.
@@ -240,4 +240,29 @@ httpServer.listen(PORT, () => {
       ? '[beatz] reign persistence ON'
       : '[beatz] reign persistence OFF (no SUPABASE_URL / SERVICE_ROLE_KEY) — rooms are memory-only',
   );
+
+  /*
+    The card pool is not optional, and its absence is not cosmetic.
+
+    Every card:play is resolved against this map. Deployed without Supabase
+    credentials the map is empty, so the server answers CARD_NOT_FOUND to
+    every play: no reign ever starts and the room is silent for everyone.
+    That is indistinguishable, from a phone, from "my friend played a song
+    and I heard nothing" -- and it is exactly what happened in production,
+    where zero reigns were ever recorded.
+
+    Checked at startup so it is visible in the deploy log rather than
+    discovered by two people in a room wondering why nothing plays.
+  */
+  const pool = await loadCards();
+  if (pool.size === 0) {
+    console.error(
+      '[beatz] CARD POOL EMPTY — every card:play will be refused as ' +
+      'CARD_NOT_FOUND and no reign can start. Set SUPABASE_URL and ' +
+      'SUPABASE_ANON_KEY (or SUPABASE_SERVICE_ROLE_KEY) on this service. ' +
+      'See docs/DEPLOY_MULTIPLAYER.md step 2.',
+    );
+  } else {
+    console.log(`[beatz] card pool loaded (${pool.size} cards)`);
+  }
 });

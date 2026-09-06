@@ -20,6 +20,9 @@ import { useRoom, MODE_LABEL } from '@/lib/useRoom';
 import { useMic } from '@/lib/useMic';
 import { vibeColor, RARITY } from '@/lib/rarity';
 import { useCards, SOURCE_LABEL } from '@/lib/useCards';
+// The SHARED player, not NowPlaying's own element: a reign is the room's
+// now-playing, and it has to survive leaving this screen.
+import { play as startPlayback, stop as stopPlayback } from '@/lib/usePlayer';
 import { useOwnedCards } from '@/lib/useOwnedCards';
 import { useAuth } from '@/lib/useAuth';
 import {
@@ -164,7 +167,7 @@ export default function DeckScreen() {
     let cancelled = false;
     setDbRoom(null); // never show the previous room's shape while switching
     if (!roomSlug) { setDbRoom(null); return; }
-    db.from('rooms').select('*').eq('slug', roomSlug).single().then(({ data }) => {
+    db.from('rooms').select('id,slug,name,mode,host_id,vibe,solo_practice,is_open,updated_at,format,visibility,mic_mode').eq('slug', roomSlug).single().then(({ data }) => {
       if (!cancelled && data) setDbRoom(data as DbRoom);
     });
     const unsubscribe = subscribeToRoom(roomSlug, (r) => !cancelled && setDbRoom(r));
@@ -182,7 +185,7 @@ export default function DeckScreen() {
   // challengers.room_id is a UUID foreign key into `rooms`. Until dbRoom
   // has loaded, roomUuid is null and useRoom leaves the challenger line
   // empty rather than querying with the wrong identifier.
-  const { mode, room, line, setHolding: pushHold } = useRoom({
+  const { mode, room, line, setHolding: pushHold, playCard: pushCard } = useRoom({
     // No membership, no socket. This is the gate that stops the tab from
     // silently joining you to a room you never chose.
     disabled: !membership,
@@ -290,7 +293,60 @@ export default function DeckScreen() {
     haptic('light');
   }, [dbRoom?.host_id, isSignedIn, following, play, haptic]);
 
-  const deckCard = useMemo(() => hand5.find((c) => c.id === deckId) ?? null, [hand5, deckId]);
+  /*
+    What is on the deck, whoever put it there.
+
+    `deckId` is only ever MY card, so resolving against my own hand meant a
+    card somebody else played could not be found -- I do not own it and it is
+    not in my five. The room's reign is the authority on what is playing, and
+    it names a cardId; the catalogue resolves it for everyone in the room.
+
+    Falling back to the local hand keeps Solo Practice working, where there
+    is no server reign at all.
+  */
+  const reignCardId = room?.reign?.cardId ?? null;
+  const deckCard = useMemo(() => {
+    const id = reignCardId ?? deckId;
+    if (!id) return null;
+    return hand5.find((c) => c.id === id) ?? cards.find((c) => c.id === id) ?? null;
+  }, [hand5, cards, reignCardId, deckId]);
+
+  /** True when the throne is somebody else's — I am listening, not playing. */
+  const someoneElseHolds =
+    Boolean(room?.reign) && room?.reign?.playerId !== profile.id;
+
+  /*
+    The room listens together.
+
+    A reign is the room's now-playing, so when one starts every phone in the
+    room plays that track -- not just the phone that played the card. This is
+    the whole point of a listening room, and it was missing: card:play was
+    never even emitted, so no reign existed to react to.
+
+    Deliberately NOT seeked to a shared position. Phones join a reign at
+    different moments and a hard seek on every state update would stutter the
+    audio for everyone; starting from the top is the honest simple version.
+    Real sync needs the server to broadcast a clock, which is its own change.
+  */
+  const reignStartedAt = room?.reign?.startedAt ?? null;
+  useEffect(() => {
+    if (!membership) return;
+
+    // No reign: the room is silent. Stop whatever the room started.
+    if (!reignCardId) { stopPlayback(); return; }
+
+    const track = deckCard;
+    if (!track?.previewUrl) return;
+
+    // Autoplay needs a prior gesture on some browsers. The person who played
+    // the card just tapped, and everyone else tapped to enter the room, so
+    // in practice this is allowed -- and usePlayer reports 'error' rather
+    // than throwing when it is not.
+    startPlayback(track, [track]);
+    // reignStartedAt changes on every new reign, which is what re-triggers
+    // this for the next song rather than only the first.
+  }, [membership, reignCardId, reignStartedAt, deckCard]);
+
   const hand = useMemo(() => hand5.filter((c) => c.id !== deckId), [hand5, deckId]);
 
   const { vibe, holding, holdPct, startHold, endHold } = useVibe({
@@ -326,9 +382,17 @@ export default function DeckScreen() {
     }
     setRefusal(null);
     setDeckId(card.id);
+
+    /*
+      Tell the room. Without this the card was played PURELY locally: the
+      socket never heard about it, no reign started, and nobody else saw or
+      heard a thing -- each phone was running its own private jukebox.
+    */
+    pushCard(card.id);
+
     play('cardPlay');
     haptic('medium');
-  }, [dbRoom, profile.id, deckId, owned, play, haptic]);
+  }, [dbRoom, profile.id, deckId, owned, play, haptic, pushCard]);
 
   const onHoldStart = useCallback(() => {
     startHold();
