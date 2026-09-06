@@ -116,6 +116,12 @@ export interface ClientToServerEvents {
   'card:play': (payload: { roomId: string; cardId: string }) => void;
   'vibe:hold': (payload: { roomId: string; holding: boolean }) => void;
   'challenger:join': (payload: { roomId: string }) => void;
+  /* Taking your own song back out of the queue. The host may remove any. */
+  'queue:remove': (payload: { roomId: string; entryId: string }) => void;
+  /* A vote nudges a Delegated room's order. Inert in the others by design:
+     a contested queue that reordered on votes would let the room lobby its
+     way past the person who actually played. */
+  'queue:vote': (payload: { roomId: string; entryId: string }) => void;
 }
 
 /** Rejected when a Guest Card is played into an Event Room (CLAUDE.md §4). */

@@ -11,6 +11,7 @@ import { SongCardView } from '@/components/SongCardView';
 import { PhoneShell } from '@/components/PhoneChrome';
 import { RoomLobby } from '@/components/RoomLobby';
 import { NowPlaying } from '@/components/NowPlaying';
+import { QueuePanel } from '@/components/QueuePanel';
 import { VibeMeter } from '@/components/VibeMeter';
 import { PerformerDisc } from '@/components/PerformerDisc';
 import { useVibe } from '@/lib/useVibe';
@@ -185,7 +186,10 @@ export default function DeckScreen() {
   // challengers.room_id is a UUID foreign key into `rooms`. Until dbRoom
   // has loaded, roomUuid is null and useRoom leaves the challenger line
   // empty rather than querying with the wrong identifier.
-  const { mode, room, line, setHolding: pushHold, playCard: pushCard } = useRoom({
+  const {
+    mode, room, line, setHolding: pushHold, playCard: pushCard,
+    removeQueued, voteQueued,
+  } = useRoom({
     // No membership, no socket. This is the gate that stops the tab from
     // silently joining you to a room you never chose.
     disabled: !membership,
@@ -700,6 +704,22 @@ export default function DeckScreen() {
             </div>
           )}
         </div>
+
+        {/*
+          What plays next. Directly under the deck slot, because it answers
+          the question the deck slot raises -- a queue tucked away somewhere
+          else is a queue nobody believes their tap reached.
+        */}
+        {membership && (
+          <QueuePanel
+            queue={room?.queue ?? []}
+            format={dbRoom?.format ?? DEFAULT_FORMAT}
+            playerId={profile.id}
+            isHost={dbRoom?.host_id === profile.id}
+            onRemove={removeQueued}
+            onVote={voteQueued}
+          />
+        )}
 
         {/* Hold to Vibe */}
         <div>

@@ -167,6 +167,21 @@ io.on('connection', (socket) => {
     store.setHolding(roomId, playerId, holding);
   });
 
+  socket.on('queue:remove', ({ roomId, entryId }) => {
+    if (!playerId) return;
+    // Ownership is checked in the store, not here: a client asking to remove
+    // somebody else's song is simply told no.
+    if (store.removeQueued(roomId, entryId, playerId)) {
+      io.to(roomId).emit('room:state', store.ensure(roomId));
+    }
+  });
+
+  socket.on('queue:vote', ({ roomId, entryId }) => {
+    if (!playerId) return;
+    store.voteQueued(roomId, entryId, playerId);
+    io.to(roomId).emit('room:state', store.ensure(roomId));
+  });
+
   socket.on('room:leave', ({ roomId }) => {
     if (playerId) store.removePlayer(roomId, playerId);
     socket.leave(roomId);

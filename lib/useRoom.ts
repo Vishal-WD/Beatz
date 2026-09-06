@@ -165,6 +165,20 @@ export function useRoom({ roomId, roomUuid = null, playerId, displayName, disabl
     [roomId],
   );
 
+  /* Taking your own song back out. The host may remove anyone's. */
+  const removeQueued = useCallback(
+    (entryId: string) => socketRef.current?.emit('queue:remove', { roomId, entryId }),
+    [roomId],
+  );
+
+  /* Voting only reorders a Delegated room — see lib/domain/queue.ts. The
+     button is hidden elsewhere rather than being a no-op the player can
+     press and wonder about. */
+  const voteQueued = useCallback(
+    (entryId: string) => socketRef.current?.emit('queue:vote', { roomId, entryId }),
+    [roomId],
+  );
+
   // Joining the Challenger Line goes through this socket event only — the
   // server assigns the atomic position (CLAUDE.md §6). There used to be a
   // REST-side joinChallengerLine() in lib/supabase.ts too, but it passed the
@@ -184,6 +198,8 @@ export function useRoom({ roomId, roomUuid = null, playerId, displayName, disabl
     playCard,
     setHolding,
     joinLine,
+    removeQueued,
+    voteQueued,
   };
 }
 
