@@ -27,7 +27,7 @@ import {
 import { startingVibeFor } from '../lib/stats';
 import { tickReign, type ReignState } from '../lib/domain/reign';
 import { controlModelFor } from '../lib/domain/formats';
-import { openReign, closeReign, persistenceEnabled, loadCards } from './db/reigns';
+import { openReign, closeReign, persistenceEnabled, loadCards, loadRoomMeta } from './db/reigns';
 import { RoomStore } from './rooms/store';
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -63,7 +63,7 @@ io.on('connection', (socket) => {
   let joinedRoom: string | null = null;
   let playerId: string | null = null;
 
-  socket.on('room:join', ({ roomId, playerId: pid, displayName }) => {
+  socket.on('room:join', async ({ roomId, playerId: pid, displayName }) => {
     /*
       A malformed join used to take the whole process down: addPlayer calls
       displayName.split(), so a payload without one threw an uncaught
@@ -80,7 +80,25 @@ io.on('connection', (socket) => {
     playerId = pid;
     socket.join(roomId);
 
-    const room = store.ensure(roomId);
+    /*
+      Create the room with the shape the DATABASE says it has.
+
+      ensure() used to be called bare, so every room took the defaults --
+      casual, disco, no host. A Concert therefore behaved like a Disco: the
+      crowd could queue and take the throne in a format where CLAUDE.md §1.1
+      allows neither, and the format field on the room row did nothing.
+
+      Falls back to the defaults when the row cannot be read, so an
+      unreachable database still gives people a working contested room
+      rather than no room at all.
+    */
+    const meta = await loadRoomMeta(roomId);
+    const room = store.ensure(roomId, meta?.mode, meta?.format);
+    if (meta) {
+      room.name = meta.name;
+      room.hostId = meta.hostId;
+    }
+
     // A missing name is not a reason to refuse entry, only to fall back.
     store.addPlayer(roomId, { id: pid, displayName: typeof displayName === 'string' && displayName.trim() ? displayName : 'Guest' });
 
@@ -110,6 +128,17 @@ io.on('connection', (socket) => {
 
     if ('error' in result) {
       socket.emit('error:msg', result.error);
+      return;
+    }
+
+    /*
+      Somebody was already playing, so this went into the queue instead of
+      taking the throne. The room still needs telling -- the queue is part
+      of what everyone sees -- but no reign started, so nothing is recorded
+      and no reign:started fires.
+    */
+    if ('queued' in result) {
+      io.to(roomId).emit('room:state', store.ensure(roomId));
       return;
     }
 
@@ -151,8 +180,10 @@ io.on('connection', (socket) => {
     store.startGrace(joinedRoom, playerId, RECONNECT_GRACE_MS, () => {
       const room = store.ensure(joinedRoom!);
       if (room.reign?.playerId === playerId) {
-        store.endReign(joinedRoom!, 'left');
+        // Someone walking out should not stop the music for everyone else.
+        const promoted = store.endReign(joinedRoom!, 'left');
         io.to(joinedRoom!).emit('reign:ended', { playerId: playerId!, reason: 'left' });
+        if (promoted) io.to(joinedRoom!).emit('reign:started', promoted);
       }
       store.removePlayer(joinedRoom!, playerId!);
       io.to(joinedRoom!).emit('room:state', room);
@@ -216,9 +247,9 @@ setInterval(() => {
       const rowId = reignRowIds.get(room.roomId);
       const peak = after.peakVibe;
 
-      store.endReign(room.roomId, 'dethroned');
+      // Ends this reign and promotes whatever is queued next.
+      const promoted = store.endReign(room.roomId, 'dethroned');
       io.to(room.roomId).emit('reign:ended', { playerId: dethroned, reason: 'dethroned' });
-      io.to(room.roomId).emit('room:state', room);
 
       // Closing the row folds the reign into the player's lifetime stats
       // (a database trigger owns that arithmetic) and promotes the next
@@ -227,6 +258,26 @@ setInterval(() => {
         reignRowIds.delete(room.roomId);
         void closeReign(rowId, after.endedReason, peak);
       }
+
+      /*
+        The queue took over, so the room keeps playing rather than falling
+        silent. It is a real reign like any other: announced, and recorded,
+        or the next song would play with nobody's stats moving.
+      */
+      if (promoted) {
+        io.to(room.roomId).emit('reign:started', promoted);
+        void openReign({
+          roomSlug: room.roomId,
+          playerId: promoted.playerId,
+          cardId: promoted.cardId,
+          startingVibe: promoted.startingVibe,
+          decayRate: promoted.decayRate,
+        }).then((id) => {
+          if (id) reignRowIds.set(room.roomId, id);
+        });
+      }
+
+      io.to(room.roomId).emit('room:state', room);
     }
   }
 }, VIBE_TICK_MS);

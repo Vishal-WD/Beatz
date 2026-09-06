@@ -19,6 +19,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { FormatId } from '../../lib/domain/formats';
 
 const URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
@@ -214,4 +215,51 @@ export async function loadCards(): Promise<Map<string, ServerCard>> {
 export function resetCardCache(): void {
   cardCache = null;
   cardLoad = null;
+}
+
+/**
+ * A room's shape, from the database.
+ *
+ * The socket store used to create every room with `ensure(roomId)` and its
+ * defaults -- casual, disco, no host -- so a Concert behaved like a Disco:
+ * the crowd could queue and take the throne in a format where CLAUDE.md
+ * §1.1 says they may do neither. The room row is the authority on which
+ * control model applies, so the server has to read it.
+ */
+export interface RoomMeta {
+  mode: 'casual' | 'event';
+  format: FormatId;
+  name: string;
+  hostId: string | null;
+}
+
+const roomMetaCache = new Map<string, RoomMeta | null>();
+
+export async function loadRoomMeta(slug: string): Promise<RoomMeta | null> {
+  if (roomMetaCache.has(slug)) return roomMetaCache.get(slug) ?? null;
+
+  const c = readClient();
+  if (!c) return null;
+
+  const { data, error } = await c
+    .from('rooms')
+    .select('mode, format, name, host_id')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error || !data) {
+    // Do NOT cache a failure: a transient outage must not pin a room to the
+    // wrong control model for the life of the process.
+    if (error) console.warn('[db] loadRoomMeta:', error.message);
+    return null;
+  }
+
+  const meta: RoomMeta = {
+    mode: data.mode as 'casual' | 'event',
+    format: data.format as FormatId,
+    name: data.name as string,
+    hostId: (data.host_id as string | null) ?? null,
+  };
+  roomMetaCache.set(slug, meta);
+  return meta;
 }

@@ -1,4 +1,3 @@
-import type { FormatId } from '../lib/domain/formats';
 /**
  * Game state types — the core loop (CLAUDE.md §1):
  *   Hold throne → Vibe Bar sustains or decays → dethrone/defend → next Challenger
@@ -7,6 +6,8 @@ import type { FormatId } from '../lib/domain/formats';
  * second independent mechanic.
  */
 
+import type { FormatId } from '../lib/domain/formats';
+import type { QueueEntry } from '../lib/domain/queue';
 import type { SongCard, GuestCard } from './cards';
 
 /** CLAUDE.md §4 — the only place room "mode" branches logic. */
@@ -58,8 +59,20 @@ export interface RoomState {
    */
   format: FormatId;
   name: string;
+  /** Who opened the room. Needed to tell a host from the crowd — Spectator
+   *  formats let only the host queue, and a host may clear any entry. */
+  hostId: string | null;
   vibe: number;
   reign: Reign | null;
+  /*
+    What plays after this one.
+
+    Without it a room could only ever hold one song: playing while somebody
+    held the throne was refused outright, and endReign left silence behind.
+    Ordered per control model by lib/domain/queue.ts -- arrival order when
+    contested, crowd support when delegated.
+  */
+  queue: QueueEntry[];
   challengers: Challenger[];
   players: Player[];
   /** True when too few players for real crowd energy (CLAUDE.md §6). */

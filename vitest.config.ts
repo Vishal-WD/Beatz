@@ -9,7 +9,9 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
     // scripts/ holds one-shot pipelines, not tests.
-    include: ['{app,components,lib}/**/*.test.{ts,tsx}'],
+    // `server` included so the room store's rules are covered too: the queue
+    // handoff lives there, and it was previously untestable by this runner.
+    include: ['{app,components,lib,server}/**/*.test.{ts,tsx}'],
   },
   resolve: {
     // Mirrors the "@/*" path alias in tsconfig.json.
