@@ -336,10 +336,21 @@ export default function DeckScreen() {
   useEffect(() => {
     if (!membership) return;
 
-    // No reign: the room is silent. Stop whatever the room started.
+    /*
+      Only a REIGN starts the music, never a local pick.
+
+      deckCard falls back to `deckId` so Solo Practice still shows a card
+      with no server reign behind it -- but treating that fallback as a
+      reason to play meant merely putting a card on the slot started the
+      audio before anyone pressed play. Looking at a card is not the same as
+      the room playing it.
+    */
     if (!reignCardId) { stopPlayback(); return; }
 
-    const track = deckCard;
+    // Resolve from the reign specifically, not from whatever the slot shows.
+    const track = hand5.find((c) => c.id === reignCardId)
+      ?? cards.find((c) => c.id === reignCardId)
+      ?? null;
     if (!track?.previewUrl) return;
 
     // Autoplay needs a prior gesture on some browsers. The person who played
@@ -349,7 +360,7 @@ export default function DeckScreen() {
     startPlayback(track, [track]);
     // reignStartedAt changes on every new reign, which is what re-triggers
     // this for the next song rather than only the first.
-  }, [membership, reignCardId, reignStartedAt, deckCard]);
+  }, [membership, reignCardId, reignStartedAt, hand5, cards]);
 
   const hand = useMemo(() => hand5.filter((c) => c.id !== deckId), [hand5, deckId]);
 

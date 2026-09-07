@@ -9,10 +9,10 @@
  * card's "stage" rather than tucking it away.
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { SongCard } from '@/types/cards';
 import { fmtTime } from '@/lib/usePlayback';
-import { usePreviewAudio } from '@/lib/usePreviewAudio';
+import { usePlayer } from '@/lib/usePlayer';
 import { RARITY, vibeColor } from '@/lib/rarity';
 import { creditFor, type CardCredit } from '@/lib/domain/shoutouts';
 import type { FormatId } from '@/lib/domain/formats';
@@ -55,12 +55,33 @@ export function NowPlaying({
     Audius stream, both of which this element plays. Verified against the
     database before removing it — 90 of 90 cards still playable.
   */
-  const preview = usePreviewAudio(card.previewUrl ?? null);
-  const available = preview.available;
-  const playing = preview.playing;
-  const elapsed = preview.elapsed;
-  const duration = preview.duration;
-  const toggle = preview.toggle;
+  /*
+    The SHARED player, not a private element of this panel's own.
+
+    This used to call usePreviewAudio, which builds its own <audio>. Once the
+    deck started driving the shared player when a reign begins, the same
+    track had two elements behind it: the room's copy started on its own and
+    pressing play started a SECOND one over the top, so it played twice and
+    out of step.
+
+    A room has one now-playing by definition, so there is one element. The
+    button here controls that, rather than competing with it.
+  */
+  const player = usePlayer();
+  const isCurrent = player.card?.id === card.id;
+
+  const available = Boolean(card.previewUrl);
+  const playing = isCurrent && player.playing;
+  const elapsed = isCurrent ? player.elapsed : 0;
+  const duration = isCurrent ? player.duration : 0;
+
+  const toggle = useCallback(() => {
+    if (!card.previewUrl) return;
+    // Already the loaded track: pause/resume it. A different card: make it
+    // the current one, which is what the deck slot's button means here.
+    if (isCurrent) player.toggle();
+    else player.play(card, [card]);
+  }, [card, isCurrent, player]);
 
   /* Which source is actually loaded. Read from the URL rather than a stored
      column so the attribution label can never disagree with the audio. */
@@ -272,13 +293,13 @@ export function NowPlaying({
                 "ready" gate (an <audio> element is usable immediately), while
                 the YouTube player must construct itself first. */}
             <span>
-              {preview.state === 'error'
+              {isCurrent && player.state === 'error'
                 ? 'UNAVAILABLE'
-                : preview.state === 'loading'
+                : isCurrent && player.state === 'loading'
                   ? 'BUFFERING'
                   : playing
                     ? 'PLAYING'
-                    : preview.state === 'ended'
+                    : isCurrent && player.state === 'ended'
                       ? 'ENDED'
                       : isFullTrack
                         ? 'FULL TRACK'
@@ -288,7 +309,7 @@ export function NowPlaying({
           </div>
         </div>
 
-        {preview.state === 'error' && (
+        {isCurrent && player.state === 'error' && (
           <div
             style={{
               marginTop: 9,
@@ -309,7 +330,7 @@ export function NowPlaying({
           source is read from the URL rather than from a stored flag, so the
           label cannot drift away from what the element is actually loading.
         */}
-        {available && preview.state !== 'error' && (
+        {available && !(isCurrent && player.state === 'error') && (
           <div
             style={{
               marginTop: 9,
